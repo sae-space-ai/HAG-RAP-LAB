@@ -1,0 +1,26 @@
+# OPTIONAL backend hosting: a paid persistent-disk Render service.
+# This configuration alone does NOT activate a service or incur charges.
+# Review costs and explicitly approve creation within Render.
+services:
+  - type: web
+    name: hag-rap-lab-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run typecheck:server
+    startCommand: npm run server
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /opt/render/project/src/data/hagrap.db
+      - key: CORS_ORIGINS
+        sync: false
+      - key: HAGRAP_DEV_TOKEN
+        generateValue: true
+    disk:
+      name: hagrap-sqlite
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

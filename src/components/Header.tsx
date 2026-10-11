@@ -36,7 +36,7 @@ export function Header({ health, connected }: HeaderProps) {
             </span>
           )}
           <span className="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded">
-            FASE 1
+            FASE 2.2a
           </span>
         </div>
       </div>
