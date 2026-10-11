@@ -30,6 +30,7 @@ import { EvaluationPanel } from './components/EvaluationPanel';
 import { ConnectionBanner } from './components/ConnectionBanner';
 import { EvaluationHistory } from './components/EvaluationHistory';
 import { DREPanel } from './components/DREPanel';
+import { AbductionPanel } from './components/AbductionPanel';
 
 export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -185,6 +186,7 @@ export default function App() {
 
             {/* Phase 2: real bounded inference through backend HTTP */}
             <DREPanel cases={cases} />
+            <AbductionPanel />
 
             {/* Evaluation History */}
             <section>

@@ -11,12 +11,15 @@ import type { EGMEngine } from './engine';
 import type { StorageAdapter } from './storage';
 import { evaluationInputSchema, seedPayloadSchema, dreInputSchema } from './schemas';
 import { DRELite, DRE_RULES, DRE_VERSION, verifyDRETrace, type DREResult } from './dre';
+import { AbductionEngine, listAbductionRules, verifyAbductionResult, type AbductionResult } from './abduction';
+import { abductionInputSchema } from './schemas';
 import { seedSources, seedClaims, seedEvidenceLinks, seedScenarios } from './seed';
 import { ALGORITHM_VERSION } from './engine';
 
 export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router {
   const router = Router();
   const dre = new DRELite(storage, engine);
+  const abduction = new AbductionEngine(storage, engine);
 
   // === GET /api/v1/health ===
   router.get('/health', async (_req: Request, res: Response) => {
@@ -148,6 +151,53 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
       return res.json({ result, integrityValid, classification: 'SYNTHETIC' });
     } catch {
       return res.status(500).json({ code: 'DRE_READ_ERROR', message: 'Error al recuperar la traza.' });
+    }
+  });
+
+  // === Experimental Phase 2.2a: evidence-gated abduction ===
+  router.get('/dre/abduction/rules', (_req: Request, res: Response) => {
+    res.json({rules:listAbductionRules(),classification:'SYNTHETIC',
+      scope:'BOUNDED_RULE_BASED_EXPLANATIONS',causalProof:false,calibratedProbability:false});
+  });
+
+  router.post('/dre/abduction/evaluate', async (req: Request,res: Response) => {
+    const parsed=abductionInputSchema.safeParse(req.body);
+    if(!parsed.success)return res.status(400).json({
+      code:'ABD_INVALID_INPUT',message:'Entrada de abducción inválida.',details:parsed.error.issues
+    });
+    try {
+      const result=await abduction.evaluate(parsed.data);
+      return res.status(201).json({result,classification:'SYNTHETIC'});
+    } catch(error) {
+      console.error('Abduction failure:',error);
+      return res.status(500).json({code:'ABD_EVALUATION_FAILED',message:'Error interno en la evaluación sintética.'});
+    }
+  });
+
+  router.get('/dre/abduction/runs',async (_req: Request,res: Response)=>{
+    try {
+      const rows=await storage.listAbductionRuns(30);
+      return res.json({runs:rows.map(r=>({id:r.id,createdAt:r.created_at,hash:r.result_hash})),
+        count:rows.length,classification:'SYNTHETIC'});
+    } catch {
+      return res.status(500).json({code:'ABD_HISTORY_FAILED',message:'Error al listar ejecuciones.'});
+    }
+  });
+
+  router.get('/dre/abduction/runs/:id',async (req: Request,res: Response)=>{
+    const id=req.params.id;
+    if(typeof id!=='string'||!/^ABD-RUN-[0-9A-F]{16}$/.test(id))
+      return res.status(400).json({code:'ABD_BAD_ID',message:'ID inválido.'});
+    try {
+      const row=await storage.getAbductionRun(id);
+      if(!row)return res.status(404).json({code:'ABD_NOT_FOUND',message:'Ejecución inexistente.'});
+      const result:AbductionResult=JSON.parse(row.full_result_json);
+      const valid=verifyAbductionResult(result)&&row.id===result.id
+        && row.result_hash===result.contentHash&&row.egm_evaluation_id===result.egmEvaluationId;
+      if(!valid)return res.status(409).json({code:'ABD_INTEGRITY_ERROR',message:'No coincide la integridad de la traza.'});
+      return res.json({result,integrityValid:true,classification:'SYNTHETIC'});
+    } catch {
+      return res.status(500).json({code:'ABD_READ_FAILED',message:'Error al consultar ejecución.'});
     }
   });
 

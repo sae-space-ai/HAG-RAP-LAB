@@ -14,6 +14,7 @@
 
 import { createApp, createDependencies } from './app';
 import { seedSources, seedClaims, seedEvidenceLinks } from './seed';
+import { seedAbductionTechnicalDomain } from './abduction-seeds';
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
 const DB_PATH = process.env.DB_PATH || './data/hagrap.db';
@@ -41,6 +42,9 @@ async function main() {
     await deps.storage.insertEvidenceLink(link);
   }
   console.log(`✓ Seeded: ${seedSources.length} sources, ${seedClaims.length} claims, ${seedEvidenceLinks.length} evidence links`);
+
+  await seedAbductionTechnicalDomain(deps.storage);
+  console.log('✓ Synthetic technical abduction fixtures available (EGM linked).');
 
   // Create and start app
   const app = createApp(deps);
