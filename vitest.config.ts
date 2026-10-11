@@ -5,5 +5,13 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     environment: 'node',
     globals: false,
+    testTimeout: 10000,
+    hookTimeout: 10000,
+  },
+  resolve: {
+    alias: {
+      '@server': '/server',
+      '@core': '/src/core',
+    },
   },
 });

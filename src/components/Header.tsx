@@ -1,10 +1,11 @@
-import type { HealthResponse } from '../core/types';
+import type { HealthData } from '../core/api-client';
 
 interface HeaderProps {
-  health: HealthResponse | null;
+  health: HealthData | null;
+  connected: boolean | null;
 }
 
-export function Header({ health }: HeaderProps) {
+export function Header({ health, connected }: HeaderProps) {
   return (
     <header className="bg-gray-900 border-b border-gray-800">
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -21,16 +22,21 @@ export function Header({ health }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          {health && (
+          {connected !== null && (
             <div className="flex items-center gap-2 text-xs">
-              <span className={`w-2 h-2 rounded-full ${health.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}></span>
               <span className="text-gray-400">
-                {health.status === 'ok' ? 'Operativo' : 'Degradado'}
+                {connected ? 'Conectado' : 'Sin conexión'}
               </span>
             </div>
           )}
+          {health && (
+            <span className="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded font-mono">
+              {health.version}
+            </span>
+          )}
           <span className="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded">
-            FASE 0
+            FASE 1
           </span>
         </div>
       </div>

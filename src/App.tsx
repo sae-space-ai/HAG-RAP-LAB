@@ -1,50 +1,92 @@
 /**
- * HAG-RAP LAB — Main Application Component
+ * HAG-RAP LAB — Main Application Component (Phase 1)
+ * 
+ * Uses real HTTP API to backend server.
+ * Shows SIN CONEXIÓN when backend is unavailable.
+ * NEVER fabricates success data.
  * 
  * PROTOTIPO EXPERIMENTAL — DATOS SINTETICOS — SIN VALIDACION TRL
  */
 
-import { useState, useEffect } from 'react';
-import { apiHealth, apiCapabilities, apiDemoCases, apiEvaluateCase } from './core/api';
-import type {
-  HealthResponse,
-  CapabilitiesResponse,
-  DemoCase,
-  EvaluationResponse,
-  ErrorResponse,
-} from './core/types';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  fetchHealth,
+  fetchCapabilities,
+  fetchCases,
+  fetchEvaluate,
+  fetchEvaluations,
+  checkConnection,
+  getApiState,
+  type HealthData,
+  type CapabilitiesData,
+  type CaseData,
+  type EvaluationData,
+  type EvaluationsListData,
+} from './core/api-client';
 import { Header } from './components/Header';
 import { CapabilityMatrix } from './components/CapabilityMatrix';
 import { CaseSelector } from './components/CaseSelector';
 import { EvaluationPanel } from './components/EvaluationPanel';
+import { ConnectionBanner } from './components/ConnectionBanner';
+import { EvaluationHistory } from './components/EvaluationHistory';
 
 export default function App() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [capabilities, setCapabilities] = useState<CapabilitiesResponse | null>(null);
-  const [cases, setCases] = useState<DemoCase[]>([]);
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const [health, setHealth] = useState<HealthData | null>(null);
+  const [capabilities, setCapabilities] = useState<CapabilitiesData | null>(null);
+  const [cases, setCases] = useState<CaseData[]>([]);
   const [selectedCase, setSelectedCase] = useState<string | null>(null);
-  const [evaluationResult, setEvaluationResult] = useState<EvaluationResponse | ErrorResponse | null>(null);
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationData | null>(null);
+  const [evaluations, setEvaluations] = useState<EvaluationsListData | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  useEffect(() => {
-    // Load initial data
-    setHealth(apiHealth());
-    setCapabilities(apiCapabilities());
-    setCases(apiDemoCases());
+  const loadInitialData = useCallback(async () => {
+    const isConnected = await checkConnection();
+    setConnected(isConnected);
+
+    if (!isConnected) return;
+
+    try {
+      const [healthData, capsData, casesData, evalsData] = await Promise.all([
+        fetchHealth(),
+        fetchCapabilities(),
+        fetchCases(),
+        fetchEvaluations(),
+      ]);
+      setHealth(healthData);
+      setCapabilities(capsData);
+      setCases(casesData.cases);
+      setEvaluations(evalsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error loading data');
+      setConnected(false);
+    }
   }, []);
 
-  const handleEvaluate = () => {
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  const handleEvaluate = async () => {
     if (!selectedCase) return;
     setIsEvaluating(true);
     setEvaluationResult(null);
+    setError(null);
 
-    // Simulate async execution (as if calling a real API)
-    setTimeout(() => {
-      const result = apiEvaluateCase(selectedCase);
+    try {
+      const result = await fetchEvaluate({ caseId: selectedCase });
       setEvaluationResult(result);
+      
+      // Refresh evaluations list
+      const evalsData = await fetchEvaluations();
+      setEvaluations(evalsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error evaluating case');
+    } finally {
       setIsEvaluating(false);
-    }, 300);
+    }
   };
 
   const handleCopyReport = () => {
@@ -56,15 +98,25 @@ export default function App() {
     });
   };
 
-  const isErrorResponse = (r: EvaluationResponse | ErrorResponse): r is ErrorResponse => {
-    return 'error' in r;
+  const handleRecheckConnection = async () => {
+    setConnected(null);
+    await loadInitialData();
   };
+
+  // === RENDER ===
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <Header health={health} />
+      <Header health={health} connected={connected} />
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        {/* Connection Status */}
+        <ConnectionBanner
+          connected={connected}
+          apiState={getApiState()}
+          onRecheck={handleRecheckConnection}
+        />
+
         {/* Warning Banner */}
         <div className="bg-amber-900/30 border border-amber-600 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -74,63 +126,82 @@ export default function App() {
                 PROTOTIPO EXPERIMENTAL — DATOS SINTÉTICOS — SIN VALIDACIÓN TRL
               </h3>
               <p className="text-amber-200/80 text-sm mt-1">
-                Este sistema es un prototipo de Fase 0. Todos los datos son sintéticos (clasificación: SYNTHETIC).
+                Este sistema es un prototipo de Fase 1 con persistencia SQLite. Todos los datos son sintéticos.
                 No existe inferencia causal, razonamiento profundo, abstracción, planificación ni certificación implementados.
-                Solo el módulo EGM-Lite tiene funcionalidad real verificada. No tomar decisiones operativas basadas en estos resultados.
+                Solo el módulo EGM-Persistent tiene funcionalidad real verificada. No tomar decisiones operativas basadas en estos resultados.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Capability Matrix */}
-        <section>
-          <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-            Estado de Componentes
-          </h2>
-          <CapabilityMatrix capabilities={capabilities} />
-        </section>
-
-        {/* Demo Cases & Evaluation */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              Casos de Prueba Sintéticos
-            </h2>
-            <CaseSelector
-              cases={cases}
-              selectedCase={selectedCase}
-              onSelect={setSelectedCase}
-              onEvaluate={handleEvaluate}
-              isEvaluating={isEvaluating}
-            />
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-900/30 border border-red-700 rounded-lg p-4">
+            <p className="text-red-300 text-sm font-medium">Error: {error}</p>
           </div>
+        )}
 
-          <div>
-            <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-              Resultado de Evaluación
-            </h2>
-            <EvaluationPanel
-              result={evaluationResult}
-              isEvaluating={isEvaluating}
-              isErrorResponse={evaluationResult ? isErrorResponse(evaluationResult) : false}
-              onCopy={handleCopyReport}
-              copySuccess={copySuccess}
-            />
-          </div>
-        </section>
+        {connected && (
+          <>
+            {/* Capability Matrix */}
+            <section>
+              <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                Estado de Componentes
+              </h2>
+              <CapabilityMatrix capabilities={capabilities} />
+            </section>
+
+            {/* Demo Cases & Evaluation */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Casos de Prueba Sintéticos
+                </h2>
+                <CaseSelector
+                  cases={cases}
+                  selectedCase={selectedCase}
+                  onSelect={setSelectedCase}
+                  onEvaluate={handleEvaluate}
+                  isEvaluating={isEvaluating}
+                />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  Resultado de Evaluación
+                </h2>
+                <EvaluationPanel
+                  result={evaluationResult}
+                  isEvaluating={isEvaluating}
+                  onCopy={handleCopyReport}
+                  copySuccess={copySuccess}
+                />
+              </div>
+            </section>
+
+            {/* Evaluation History */}
+            <section>
+              <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
+                Historial de Evaluaciones Persistidas
+              </h2>
+              <EvaluationHistory evaluations={evaluations} />
+            </section>
+          </>
+        )}
 
         {/* Footer */}
         <footer className="border-t border-gray-800 pt-6 mt-12">
           <div className="text-center text-gray-500 text-sm space-y-1">
-            <p>HAG-RAP LAB — Fase 0 — Prototipo Científico Veraz</p>
+            <p>HAG-RAP LAB — Fase 1 — Prototipo con Persistencia SQLite</p>
             <p>
               {health && (
                 <>
-                  Motor: {health.version} | Persistencia: {health.dependencies.persistence} | 
-                  Servicios externos: {health.dependencies.externalServices}
+                  Motor: {health.version} | Runtime: {health.runtime} | 
+                  Almacenamiento: {health.dependencies.storage}
                 </>
               )}
             </p>

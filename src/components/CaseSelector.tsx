@@ -1,24 +1,25 @@
-import type { DemoCase, ClaimStatus } from '../core/types';
+import type { CaseData } from '../core/api-client';
 
 interface CaseSelectorProps {
-  cases: DemoCase[];
+  cases: CaseData[];
   selectedCase: string | null;
   onSelect: (id: string) => void;
   onEvaluate: () => void;
   isEvaluating: boolean;
 }
 
-function ExpectedBadge({ status }: { status: ClaimStatus }) {
-  const styles: Record<ClaimStatus, string> = {
+function ExpectedBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
     'SUPPORTED': 'bg-green-900/40 text-green-400 border-green-800',
     'CONTRADICTED': 'bg-red-900/40 text-red-400 border-red-800',
     'INSUFFICIENT_EVIDENCE': 'bg-yellow-900/40 text-yellow-400 border-yellow-800',
-    'ABSTAIN': 'bg-gray-800 text-gray-400 border-gray-700',
     'ERROR': 'bg-orange-900/40 text-orange-400 border-orange-800',
   };
 
+  const style = styles[status] || 'bg-gray-800 text-gray-400 border-gray-700';
+
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded border ${styles[status]}`}>
+    <span className={`text-xs px-1.5 py-0.5 rounded border ${style}`}>
       {status}
     </span>
   );
@@ -28,8 +29,8 @@ export function CaseSelector({ cases, selectedCase, onSelect, onEvaluate, isEval
   return (
     <div className="bg-gray-900 rounded-lg border border-gray-800 p-4 space-y-3">
       <p className="text-xs text-gray-500 mb-2">
-        Todos los casos son datos sintéticos generados para demostrar el motor de evaluación.
-        Selecciónelos y ejecute la evaluación real.
+        Todos los casos son datos sintéticos almacenados en SQLite.
+        Selecciónelos y ejecute la evaluación real vía API HTTP.
       </p>
 
       <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -45,7 +46,7 @@ export function CaseSelector({ cases, selectedCase, onSelect, onEvaluate, isEval
           >
             <div className="flex items-center justify-between mb-1">
               <span className="font-mono text-xs text-gray-400">{c.id}</span>
-              <ExpectedBadge status={c.expectedOutcome} />
+              <ExpectedBadge status={c.expectedVerdict} />
             </div>
             <h4 className="text-sm font-medium text-gray-200">{c.title}</h4>
             <p className="text-xs text-gray-500 mt-1">{c.description}</p>
@@ -70,10 +71,10 @@ export function CaseSelector({ cases, selectedCase, onSelect, onEvaluate, isEval
         {isEvaluating ? (
           <span className="flex items-center justify-center gap-2">
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            Evaluando...
+            Evaluando vía API...
           </span>
         ) : (
-          '▶ Ejecutar evaluación REAL'
+          '▶ Ejecutar evaluación REAL (POST /api/v1/evaluations)'
         )}
       </button>
 
