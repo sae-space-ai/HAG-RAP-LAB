@@ -372,8 +372,8 @@ export const seedScenarios: SeedScenario[] = [
   {
     id: 'CASE-007',
     title: 'Caso 7: Periodo temporal diferente',
-    description: 'Valores diferentes pero en periodos temporales distintos. No es contradicción directa.',
-    expectedVerdict: 'SUPPORTED',
+    description: 'Valores de periodos temporales distintos: no hay contradicción temporal, pero una sola fuente no basta para apoyar la afirmación.',
+    expectedVerdict: 'INSUFFICIENT_EVIDENCE',
     claimId: 'CLM-007',
     classification: 'SYNTHETIC',
   },

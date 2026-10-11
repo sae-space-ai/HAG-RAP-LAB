@@ -139,10 +139,22 @@ export class EGMEngine {
     const predicate = claim?.predicate || input.predicate || '';
     const proposedValue = claim?.object_value || input.proposedValue || '';
 
-    // Get all claims for same subject+predicate to detect contradictions
+    // Temporal validity matters: observations from different periods must not
+    // be classified as mutually contradictory. ISO-8601 UTC fixture dates sort
+    // lexicographically. Real-world timezones need a dedicated normalizer.
+    const intervalsOverlap = (a: StoredClaim, b: StoredClaim): boolean => {
+      if (a.valid_to && b.valid_from && a.valid_to < b.valid_from) return false;
+      if (b.valid_to && a.valid_from && b.valid_to < a.valid_from) return false;
+      return true;
+    };
+
     const allClaims = await this.storage.getAllClaims();
-    const relatedClaims = allClaims.filter(
-      c => c.subject === subject && c.predicate === predicate && c.id !== claim?.id
+    const relatedClaims = allClaims.filter(c =>
+      c.subject === subject &&
+      c.predicate === predicate &&
+      c.id !== claim?.id &&
+      (!claim || intervalsOverlap(claim, c)) &&
+      (!claim || c.unit === claim.unit)
     );
 
     // Check for contradictions with related claims from different sources
@@ -164,28 +176,46 @@ export class EGMEngine {
       );
     }
 
-    // Check if proposed value matches evidence
-    const valueMatches = claim ? claim.object_value === proposedValue : true;
+    // A copied or derived source is not independent corroboration.
+    // Conservatively abstain when the primary evidence itself is derivative.
+    if (sources.some(s => s.source_type === 'synthetic_derivative')) {
+      return this.buildResult(
+        evaluationId, input.caseId || null, input, claim,
+        'INSUFFICIENT_EVIDENCE', 'ABSTAIN', 'RULE-NONINDEPENDENT',
+        'La evidencia primaria es derivada y no acredita confirmación independiente.',
+        [], [], evidenceLinks.map(l => l.id), createdAt, sources
+      );
+    }
 
-    if (valueMatches && sources.length > 0) {
-      // RULE-SUPPORTED
+    const corroboratingSourceIds = new Set(
+      sources.filter(s => s.source_type !== 'synthetic_derivative').map(s => s.id)
+    );
+    // Concordant sister claims may establish independent corroboration.
+    for (const other of relatedClaims) {
+      if (other.object_value !== proposedValue) continue;
+      const src = await this.storage.getSource(other.source_id);
+      if (src && src.source_type !== 'synthetic_derivative'
+              && src.source_type !== 'synthetic_unresolved_reference') {
+        corroboratingSourceIds.add(src.id);
+      }
+    }
+
+    if (corroboratingSourceIds.size >= 2) {
       return this.buildResult(
         evaluationId, input.caseId || null, input, claim,
         'SUPPORTED', 'PROCEED', 'RULE-SUPPORTED',
-        `Evidencia de [${sources.map(s => s.id).join(', ')}] soporta el valor "${proposedValue}" para "${subject}.${predicate}". NOTA: Esto NO constituye inferencia causal ni prueba formal.`,
-        sourceIds, [], evidenceLinks.map(l => l.id),
-        createdAt, sources
-      );
-    } else {
-      // RULE-PARTIAL
-      return this.buildResult(
-        evaluationId, input.caseId || null, input, claim,
-        'INSUFFICIENT_EVIDENCE', 'ABSTAIN', 'RULE-PARTIAL',
-        `Las fuentes son consistentes pero el valor propuesto no coincide con la evidencia almacenada. El sistema se abstiene.`,
-        [], [], evidenceLinks.map(l => l.id),
+        `Dos o más fuentes independientes y concordantes respaldan "${subject}.${predicate}" en el periodo evaluado. No es una prueba causal ni formal.`,
+        [...corroboratingSourceIds], [], evidenceLinks.map(l => l.id),
         createdAt, sources
       );
     }
+
+    return this.buildResult(
+      evaluationId, input.caseId || null, input, claim,
+      'INSUFFICIENT_EVIDENCE', 'ABSTAIN', 'RULE-INSUFFICIENT',
+      'No se ha acreditado el mínimo de dos fuentes independientes y concordantes en el mismo periodo.',
+      [], [], evidenceLinks.map(l => l.id), createdAt, sources
+    );
   }
 
   private async buildResult(
