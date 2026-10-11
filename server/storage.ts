@@ -419,8 +419,7 @@ export class SQLiteStorageAdapter implements StorageAdapter {
     `).run(run.id,run.claim_id,run.egm_evaluation_id,run.result_hash,run.full_result_json,run.created_at);
   }
   async getAbductionRun(id: string): Promise<StoredAbductionRun | null> {
-    const row = this.db.prepare('SELECT * FROM abduction_runs WHERE id=?').get(id)
-      as StoredAbductionRun | undefined;
+    const row = this.db.prepare('SELECT * FROM abduction_runs WHERE id=?').get(id) as StoredAbductionRun | undefined;
     return row ?? null;
   }
   async listAbductionRuns(limit:number):Promise<StoredAbductionRun[]> {
