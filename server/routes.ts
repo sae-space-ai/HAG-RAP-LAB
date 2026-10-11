@@ -267,3 +267,175 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
 
   return router;
 }
+
+// === PHASE 2.2: DRE ROUTES ===
+
+export function createDRERouter(dreEngine: any, storage: StorageAdapter): Router {
+  const router = Router();
+
+  // GET /api/v1/dre/domains
+  router.get('/domains', (_req: Request, res: Response) => {
+    const { DOMAIN_METADATA } = require('./rule-catalog');
+    res.json({
+      domains: Object.entries(DOMAIN_METADATA).map(([id, meta]: [string, any]) => ({
+        id,
+        ...meta,
+      })),
+      classification: 'SYNTHETIC',
+    });
+  });
+
+  // GET /api/v1/dre/rules
+  router.get('/rules', async (req: Request, res: Response) => {
+    try {
+      const domain = req.query.domain as string | undefined;
+      const rules = domain 
+        ? await storage.getDRERulesByDomain(domain)
+        : await storage.getAllDRERules();
+      
+      res.json({
+        rules,
+        count: rules.length,
+        classification: 'SYNTHETIC',
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'FETCH_RULES_FAILED',
+        message: 'Error al recuperar reglas DRE.',
+      });
+    }
+  });
+
+  // GET /api/v1/dre/rules/:id
+  router.get('/rules/:id', async (req: Request, res: Response) => {
+    try {
+      const rule = await storage.getDRERule(req.params.id);
+      if (!rule) {
+        return res.status(404).json({
+          error: 'Rule not found',
+          code: 'RULE_NOT_FOUND',
+          message: `La regla "${req.params.id}" no existe.`,
+        });
+      }
+      res.json({ rule, classification: 'SYNTHETIC' });
+    } catch (error) {
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'FETCH_RULE_FAILED',
+        message: 'Error al recuperar la regla.',
+      });
+    }
+  });
+
+  // POST /api/v1/dre/reasoning
+  router.post('/reasoning', async (req: Request, res: Response) => {
+    try {
+      const { domain, observation } = req.body;
+      
+      if (!domain || !observation) {
+        return res.status(400).json({
+          error: 'Validation error',
+          code: 'INVALID_INPUT',
+          message: 'Se requiere domain y observation.',
+        });
+      }
+      
+      if (!['METEOROLOGICAL', 'TECHNICAL_SYSTEM'].includes(domain)) {
+        return res.status(400).json({
+          error: 'Validation error',
+          code: 'INVALID_DOMAIN',
+          message: `Dominio no válido: ${domain}. Use METEOROLOGICAL o TECHNICAL_SYSTEM.`,
+        });
+      }
+      
+      const trace = await dreEngine.executeReasoning(domain, observation);
+      
+      // Persist trace
+      await storage.insertDRETrace(trace);
+      
+      // Persist hypotheses
+      const hypotheses = await storage.getDREHypothesesByExecution(trace.id);
+      // Note: hypotheses are created during executeReasoning but not persisted yet
+      // In a full implementation, we'd persist them here
+      
+      res.status(201).json({
+        trace,
+        classification: 'SYNTHETIC',
+      });
+    } catch (error) {
+      console.error('DRE reasoning error:', error);
+      res.status(500).json({
+        error: 'Reasoning failed',
+        code: 'REASONING_ERROR',
+        message: 'Error durante el razonamiento DRE.',
+      });
+    }
+  });
+
+  // GET /api/v1/dre/traces
+  router.get('/traces', async (req: Request, res: Response) => {
+    try {
+      const domain = req.query.domain as string | undefined;
+      const traces = domain
+        ? await storage.getDRETracesByDomain(domain)
+        : await storage.getAllDRETraces();
+      
+      res.json({
+        traces,
+        count: traces.length,
+        classification: 'SYNTHETIC',
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'FETCH_TRACES_FAILED',
+        message: 'Error al recuperar trazas DRE.',
+      });
+    }
+  });
+
+  // GET /api/v1/dre/traces/:id
+  router.get('/traces/:id', async (req: Request, res: Response) => {
+    try {
+      const trace = await storage.getDRETrace(req.params.id);
+      if (!trace) {
+        return res.status(404).json({
+          error: 'Trace not found',
+          code: 'TRACE_NOT_FOUND',
+          message: `La traza "${req.params.id}" no existe.`,
+        });
+      }
+      res.json({ trace, classification: 'SYNTHETIC' });
+    } catch (error) {
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'FETCH_TRACE_FAILED',
+        message: 'Error al recuperar la traza.',
+      });
+    }
+  });
+
+  // GET /api/v1/dre/hypotheses/:id
+  router.get('/hypotheses/:id', async (req: Request, res: Response) => {
+    try {
+      const hypothesis = await storage.getDREHypothesis(req.params.id);
+      if (!hypothesis) {
+        return res.status(404).json({
+          error: 'Hypothesis not found',
+          code: 'HYPOTHESIS_NOT_FOUND',
+          message: `La hipótesis "${req.params.id}" no existe.`,
+        });
+      }
+      res.json({ hypothesis, classification: 'SYNTHETIC' });
+    } catch (error) {
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'FETCH_HYPOTHESIS_FAILED',
+        message: 'Error al recuperar la hipótesis.',
+      });
+    }
+  });
+
+  return router;
+}

@@ -45,6 +45,21 @@ export interface StorageAdapter {
   insertAuditEvent(event: StoredAuditEvent): Promise<void>;
   getAuditEvents(): Promise<StoredAuditEvent[]>;
   
+  // Phase 2.2: DRE
+  insertDRERule(rule: any): Promise<void>;
+  getDRERule(id: string): Promise<any | null>;
+  getAllDRERules(): Promise<any[]>;
+  getDRERulesByDomain(domain: string): Promise<any[]>;
+  
+  insertDREHypothesis(hypothesis: any): Promise<void>;
+  getDREHypothesis(id: string): Promise<any | null>;
+  getDREHypothesesByExecution(executionId: string): Promise<any[]>;
+  
+  insertDRETrace(trace: any): Promise<void>;
+  getDRETrace(id: string): Promise<any | null>;
+  getAllDRETraces(): Promise<any[]>;
+  getDRETracesByDomain(domain: string): Promise<any[]>;
+  
   // Integrity
   verifyAuditChain(): Promise<{ valid: boolean; errors: string[] }>;
 }
@@ -172,11 +187,60 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_evidence_claim ON evidence_links(claim_id)`,
   `CREATE INDEX IF NOT EXISTS idx_evaluations_case ON evaluations(case_id)`,
   `CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_events(occurred_at)`,
+  // Phase 2.2: DRE tables
+  `CREATE TABLE IF NOT EXISTS dre_rules (
+    id TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    premises_json TEXT NOT NULL,
+    conditions_json TEXT NOT NULL,
+    conclusion_json TEXT NOT NULL,
+    limitations_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    rule_hash TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS dre_hypotheses (
+    id TEXT PRIMARY KEY,
+    execution_id TEXT NOT NULL,
+    observation TEXT NOT NULL,
+    rule_id TEXT NOT NULL,
+    rule_version TEXT NOT NULL,
+    premises_json TEXT NOT NULL,
+    evidences_json TEXT NOT NULL,
+    predictions_json TEXT NOT NULL,
+    unmet_constraints_json TEXT NOT NULL,
+    required_observations_json TEXT NOT NULL,
+    state TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    hypothesis_hash TEXT NOT NULL,
+    FOREIGN KEY (execution_id) REFERENCES dre_traces(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS dre_traces (
+    id TEXT PRIMARY KEY,
+    domain TEXT NOT NULL,
+    initial_observation TEXT NOT NULL,
+    steps_json TEXT NOT NULL,
+    hypotheses_generated_json TEXT NOT NULL,
+    hypotheses_retained_json TEXT NOT NULL,
+    hypotheses_refuted_json TEXT NOT NULL,
+    final_decision TEXT NOT NULL,
+    abstention_reason TEXT,
+    execution_limits_json TEXT NOT NULL,
+    limits_reached_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    trace_hash TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_dre_rules_domain ON dre_rules(domain)`,
+  `CREATE INDEX IF NOT EXISTS idx_dre_hypotheses_execution ON dre_hypotheses(execution_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_dre_traces_domain ON dre_traces(domain)`,
 ];
 
 // === HASH UTILITIES ===
 
-function computeHash(data: string): string {
+export function computeHash(data: string): string {
   // Simple hash for provenance — NOT cryptographic security
   // Used for detecting accidental changes, not for digital signatures
   let hash = 0;
@@ -385,5 +449,172 @@ export class SQLiteStorageAdapter implements StorageAdapter {
     }
 
     return { valid: errors.length === 0, errors };
+  }
+
+  // === PHASE 2.2: DRE TABLES ===
+
+  async insertDRERule(rule: any): Promise<void> {
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO dre_rules (id, version, name, description, domain, premises_json, conditions_json, conclusion_json, limitations_json, created_at, rule_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      rule.id, rule.version, rule.name, rule.description, rule.domain,
+      JSON.stringify(rule.premises), JSON.stringify(rule.conditions),
+      JSON.stringify(rule.conclusion), JSON.stringify(rule.limitations),
+      rule.created_at, rule.rule_hash
+    );
+  }
+
+  async getDRERule(id: string): Promise<any | null> {
+    const stmt = this.db.prepare('SELECT * FROM dre_rules WHERE id = ?');
+    const row = stmt.get(id) as any;
+    if (!row) return null;
+    return {
+      ...row,
+      premises: JSON.parse(row.premises_json),
+      conditions: JSON.parse(row.conditions_json),
+      conclusion: JSON.parse(row.conclusion_json),
+      limitations: JSON.parse(row.limitations_json),
+    };
+  }
+
+  async getAllDRERules(): Promise<any[]> {
+    const stmt = this.db.prepare('SELECT * FROM dre_rules ORDER BY domain, id');
+    const rows = stmt.all() as any[];
+    return rows.map(row => ({
+      ...row,
+      premises: JSON.parse(row.premises_json),
+      conditions: JSON.parse(row.conditions_json),
+      conclusion: JSON.parse(row.conclusion_json),
+      limitations: JSON.parse(row.limitations_json),
+    }));
+  }
+
+  async getDRERulesByDomain(domain: string): Promise<any[]> {
+    const stmt = this.db.prepare('SELECT * FROM dre_rules WHERE domain = ? ORDER BY id');
+    const rows = stmt.all(domain) as any[];
+    return rows.map(row => ({
+      ...row,
+      premises: JSON.parse(row.premises_json),
+      conditions: JSON.parse(row.conditions_json),
+      conclusion: JSON.parse(row.conclusion_json),
+      limitations: JSON.parse(row.limitations_json),
+    }));
+  }
+
+  async insertDREHypothesis(hypothesis: any): Promise<void> {
+    const stmt = this.db.prepare(`
+      INSERT INTO dre_hypotheses (id, execution_id, observation, rule_id, rule_version, premises_json, evidences_json, predictions_json, unmet_constraints_json, required_observations_json, state, explanation, created_at, hypothesis_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      hypothesis.id, hypothesis.executionId, hypothesis.observation,
+      hypothesis.ruleId, hypothesis.ruleVersion,
+      JSON.stringify(hypothesis.premises), JSON.stringify(hypothesis.evidences),
+      JSON.stringify(hypothesis.predictions), JSON.stringify(hypothesis.unmetConstraints),
+      JSON.stringify(hypothesis.requiredObservations),
+      hypothesis.state, hypothesis.explanation, hypothesis.created_at, hypothesis.hypothesis_hash
+    );
+  }
+
+  async getDREHypothesis(id: string): Promise<any | null> {
+    const stmt = this.db.prepare('SELECT * FROM dre_hypotheses WHERE id = ?');
+    const row = stmt.get(id) as any;
+    if (!row) return null;
+    return {
+      ...row,
+      executionId: row.execution_id,
+      ruleId: row.rule_id,
+      ruleVersion: row.rule_version,
+      premises: JSON.parse(row.premises_json),
+      evidences: JSON.parse(row.evidences_json),
+      predictions: JSON.parse(row.predictions_json),
+      unmetConstraints: JSON.parse(row.unmet_constraints_json),
+      requiredObservations: JSON.parse(row.required_observations_json),
+    };
+  }
+
+  async getDREHypothesesByExecution(executionId: string): Promise<any[]> {
+    const stmt = this.db.prepare('SELECT * FROM dre_hypotheses WHERE execution_id = ? ORDER BY created_at');
+    const rows = stmt.all(executionId) as any[];
+    return rows.map(row => ({
+      ...row,
+      executionId: row.execution_id,
+      ruleId: row.rule_id,
+      ruleVersion: row.rule_version,
+      premises: JSON.parse(row.premises_json),
+      evidences: JSON.parse(row.evidences_json),
+      predictions: JSON.parse(row.predictions_json),
+      unmetConstraints: JSON.parse(row.unmet_constraints_json),
+      requiredObservations: JSON.parse(row.required_observations_json),
+    }));
+  }
+
+  async insertDRETrace(trace: any): Promise<void> {
+    const stmt = this.db.prepare(`
+      INSERT INTO dre_traces (id, domain, initial_observation, steps_json, hypotheses_generated_json, hypotheses_retained_json, hypotheses_refuted_json, final_decision, abstention_reason, execution_limits_json, limits_reached_json, created_at, trace_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      trace.id, trace.domain, trace.initialObservation,
+      JSON.stringify(trace.steps), JSON.stringify(trace.hypothesesGenerated),
+      JSON.stringify(trace.hypothesesRetained), JSON.stringify(trace.hypothesesRefuted),
+      trace.finalDecision, trace.abstentionReason || null,
+      JSON.stringify(trace.executionLimits), JSON.stringify(trace.limitsReached),
+      trace.created_at, trace.trace_hash
+    );
+  }
+
+  async getDRETrace(id: string): Promise<any | null> {
+    const stmt = this.db.prepare('SELECT * FROM dre_traces WHERE id = ?');
+    const row = stmt.get(id) as any;
+    if (!row) return null;
+    return {
+      ...row,
+      initialObservation: row.initial_observation,
+      steps: JSON.parse(row.steps_json),
+      hypothesesGenerated: JSON.parse(row.hypotheses_generated_json),
+      hypothesesRetained: JSON.parse(row.hypotheses_retained_json),
+      hypothesesRefuted: JSON.parse(row.hypotheses_refuted_json),
+      finalDecision: row.final_decision,
+      abstentionReason: row.abstention_reason,
+      executionLimits: JSON.parse(row.execution_limits_json),
+      limitsReached: JSON.parse(row.limits_reached_json),
+    };
+  }
+
+  async getAllDRETraces(): Promise<any[]> {
+    const stmt = this.db.prepare('SELECT * FROM dre_traces ORDER BY created_at DESC');
+    const rows = stmt.all() as any[];
+    return rows.map(row => ({
+      ...row,
+      initialObservation: row.initial_observation,
+      steps: JSON.parse(row.steps_json),
+      hypothesesGenerated: JSON.parse(row.hypotheses_generated_json),
+      hypothesesRetained: JSON.parse(row.hypotheses_retained_json),
+      hypothesesRefuted: JSON.parse(row.hypotheses_refuted_json),
+      finalDecision: row.final_decision,
+      abstentionReason: row.abstention_reason,
+      executionLimits: JSON.parse(row.execution_limits_json),
+      limitsReached: JSON.parse(row.limits_reached_json),
+    }));
+  }
+
+  async getDRETracesByDomain(domain: string): Promise<any[]> {
+    const stmt = this.db.prepare('SELECT * FROM dre_traces WHERE domain = ? ORDER BY created_at DESC');
+    const rows = stmt.all(domain) as any[];
+    return rows.map(row => ({
+      ...row,
+      initialObservation: row.initial_observation,
+      steps: JSON.parse(row.steps_json),
+      hypothesesGenerated: JSON.parse(row.hypotheses_generated_json),
+      hypothesesRetained: JSON.parse(row.hypotheses_retained_json),
+      hypothesesRefuted: JSON.parse(row.hypotheses_refuted_json),
+      finalDecision: row.final_decision,
+      abstentionReason: row.abstention_reason,
+      executionLimits: JSON.parse(row.execution_limits_json),
+      limitsReached: JSON.parse(row.limits_reached_json),
+    }));
   }
 }

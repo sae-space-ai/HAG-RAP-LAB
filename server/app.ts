@@ -8,14 +8,16 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { createRouter } from './routes';
+import { createRouter, createDRERouter } from './routes';
 import { EGMEngine } from './engine';
+import { DREEngine } from './dre-engine';
 import { SQLiteStorageAdapter } from './storage';
 import type { StorageAdapter } from './storage';
 
 export interface AppDependencies {
   storage: StorageAdapter;
   engine: EGMEngine;
+  dreEngine: DREEngine;
 }
 
 export function createApp(deps: AppDependencies) {
@@ -56,6 +58,10 @@ export function createApp(deps: AppDependencies) {
   // === API ROUTES ===
   const router = createRouter(deps.engine, deps.storage);
   app.use('/api/v1', router);
+  
+  // Phase 2.2: DRE routes
+  const dreRouter = createDRERouter(deps.dreEngine, deps.storage);
+  app.use('/api/v1/dre', dreRouter);
 
   // === STATIC FILES (serve Vite build in production) ===
   const distPath = path.join(process.cwd(), 'dist');
@@ -96,5 +102,6 @@ export function createApp(deps: AppDependencies) {
 export function createDependencies(dbPath?: string): AppDependencies {
   const storage = new SQLiteStorageAdapter(dbPath);
   const engine = new EGMEngine(storage);
-  return { storage, engine };
+  const dreEngine = new DREEngine(storage);
+  return { storage, engine, dreEngine };
 }
