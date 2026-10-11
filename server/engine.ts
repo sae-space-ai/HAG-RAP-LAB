@@ -111,7 +111,10 @@ export class EGMEngine {
     const missingSources: string[] = [];
     for (const sid of sourceIds) {
       const source = await this.storage.getSource(sid);
-      if (source) {
+      if (source?.source_type === 'synthetic_unresolved_reference') {
+        // Explicit fixture marker: source unavailable, not admissible evidence.
+        missingSources.push(sid);
+      } else if (source) {
         sources.push(source);
       } else {
         missingSources.push(sid);
