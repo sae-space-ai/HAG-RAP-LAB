@@ -10,8 +10,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'path';
 import fs from 'fs';
-import { SQLiteStorageAdapter, computeProvenanceHash } from '../server/storage';
-import { seedSources, seedClaims, seedEvidenceLinks } from '../server/seed';
+import { SQLiteStorageAdapter, computeProvenanceHash } from '../../server/storage';
+import { seedSources, seedClaims, seedEvidenceLinks } from '../../server/seed';
 
 const PERSISTENCE_DB_PATH = path.join(process.cwd(), 'data', 'persistence-test.db');
 

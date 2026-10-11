@@ -169,6 +169,22 @@ describe('EGM Engine Unit Tests', () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  // === TEST 15: Derived source does not count as independent evidence ===
+  it('Test 15: Derived source alone forces ABSTAIN', async () => {
+    const result = await engine.evaluate({ claimId: 'CLM-006', caseId: 'CASE-006' });
+    expect(result.verdict).toBe('INSUFFICIENT_EVIDENCE');
+    expect(result.decision).toBe('ABSTAIN');
+    expect(result.appliedRule).toBe('RULE-NONINDEPENDENT');
+  });
+
+  // === TEST 16: Different time periods do not contradict ===
+  it('Test 16: Non-overlapping periods must not be contradictory', async () => {
+    const result = await engine.evaluate({ claimId: 'CLM-007', caseId: 'CASE-007' });
+    expect(result.verdict).toBe('INSUFFICIENT_EVIDENCE');
+    expect(result.appliedRule).not.toBe('RULE-CONTRADICTED');
+    expect(result.decision).toBe('ABSTAIN');
+  });
+
   // === TEST 15: Algorithm version constant ===
   it('Test 15: Algorithm version is consistent', () => {
     expect(ALGORITHM_VERSION).toBe('EGM-PERSISTENT-v1.0.0');

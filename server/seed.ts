@@ -80,6 +80,20 @@ export const seedSources: StoredSource[] = [
   },
 ];
 
+// A deliberately UNRESOLVED external reference is represented by an explicit
+// synthetic placeholder. We do not insert broken foreign keys into SQLite.
+// The engine treats this record as unavailable and returns ERROR / ABSTAIN.
+seedSources.push({
+  id: 'SRC-NONEXISTENT',
+  title: 'UNRESOLVED EXTERNAL SOURCE — synthetic placeholder (not evidence)',
+  source_type: 'synthetic_unresolved_reference',
+  origin_uri: null,
+  obtained_at: '2025-01-15T12:00:00Z',
+  reliability_metadata: 'SYNTHETIC: Unavailable source marker; must never support a claim',
+  synthetic: true,
+  created_at: '2025-01-15T12:00:00Z',
+});
+
 export const seedClaims: StoredClaim[] = [
   // Case 1: Two independent sources agree
   {
@@ -154,7 +168,7 @@ export const seedClaims: StoredClaim[] = [
     synthetic: true,
     created_at: '2025-01-15T10:00:00Z',
   },
-  // Case 4: Reference to non-existent source
+  // Case 4: Unresolved external source represented by a non-evidence placeholder
   {
     id: 'CLM-004',
     subject: 'SUBJ-PRESSURE-VALENCIA',
@@ -333,8 +347,8 @@ export const seedScenarios: SeedScenario[] = [
   },
   {
     id: 'CASE-004',
-    title: 'Caso 4: Referencia a fuente inexistente',
-    description: 'La afirmación referencia una fuente que no existe. Resultado esperado: ERROR → ABSTAIN.',
+    title: 'Caso 4: Referencia externa no resoluble',
+    description: 'Marcador sintético de fuente externa no resuelta: no es evidencia admisible. Resultado esperado: ERROR → ABSTAIN.',
     expectedVerdict: 'ERROR',
     claimId: 'CLM-004',
     classification: 'SYNTHETIC',
@@ -358,8 +372,8 @@ export const seedScenarios: SeedScenario[] = [
   {
     id: 'CASE-007',
     title: 'Caso 7: Periodo temporal diferente',
-    description: 'Valores diferentes pero en periodos temporales distintos. No es contradicción directa.',
-    expectedVerdict: 'SUPPORTED',
+    description: 'Valores de periodos temporales distintos: no hay contradicción temporal, pero una sola fuente no basta para apoyar la afirmación.',
+    expectedVerdict: 'INSUFFICIENT_EVIDENCE',
     claimId: 'CLM-007',
     classification: 'SYNTHETIC',
   },

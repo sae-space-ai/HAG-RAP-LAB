@@ -12,8 +12,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import path from 'path';
 import fs from 'fs';
-import { createApp, createDependencies } from '../server/app';
-import { seedSources, seedClaims, seedEvidenceLinks } from '../server/seed';
+import { createApp, createDependencies } from '../../server/app';
+import { seedSources, seedClaims, seedEvidenceLinks } from '../../server/seed';
 
 // Use a temporary database for tests
 const TEST_DB_PATH = path.join(process.cwd(), 'data', 'test-hagrap.db');
@@ -73,7 +73,7 @@ describe('HAG-RAP API Integration Tests', () => {
     expect(res.body.totalNotImplemented).toBe(6);
     
     const egm = res.body.components.find((c: any) => c.id === 'EGM');
-    expect(egm.status).toBe('VERIFICADO_LOCAL');
+    expect(egm.status).toBe('IMPLEMENTED_UNVERIFIED');
   });
 
   // === TEST: Cases list ===
@@ -201,14 +201,14 @@ describe('HAG-RAP API Integration Tests', () => {
   });
 
   // === TEST: Seed endpoint requires auth ===
-  it('POST /api/v1/seed without token is accepted (no token configured)', async () => {
+  it('POST /api/v1/seed without token is forbidden', async () => {
     const res = await request(app)
       .post('/api/v1/seed')
       .send({});
     
-    // Without HAGRAP_DEV_TOKEN env var, seed is allowed
-    expect(res.status).toBe(200);
-    expect(res.body.idempotent).toBe(true);
+    // Seed mutation must be disabled when no development token is configured.
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('INVALID_DEV_TOKEN');
   });
 
   // === TEST: Determinism ===
