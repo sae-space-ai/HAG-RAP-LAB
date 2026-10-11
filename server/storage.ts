@@ -46,6 +46,11 @@ export interface StorageAdapter {
   getDRETrace(id: string): Promise<StoredDRETrace | null>;
   listDRETraces(limit: number): Promise<StoredDRETrace[]>;
 
+  // Persistent synthetic abductive experiments (separate from validated DRE-Lite traces)
+  insertAbductionRun(run: StoredAbductionRun): Promise<void>;
+  getAbductionRun(id: string): Promise<StoredAbductionRun | null>;
+  listAbductionRuns(limit: number): Promise<StoredAbductionRun[]>;
+
   // Audit Events
   insertAuditEvent(event: StoredAuditEvent): Promise<void>;
   getAuditEvents(): Promise<StoredAuditEvent[]>;
@@ -114,6 +119,15 @@ export interface StoredDRETrace {
   trace_hash: string;
   created_at: string;
   full_result_json: string;
+}
+
+export interface StoredAbductionRun {
+  id: string;
+  claim_id: string | null;
+  egm_evaluation_id: string;
+  result_hash: string;
+  full_result_json: string;
+  created_at: string;
 }
 
 export interface StoredAuditEvent {
@@ -191,6 +205,17 @@ const MIGRATIONS = [
     FOREIGN KEY (egm_evaluation_id) REFERENCES evaluations(id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_dre_traces_created ON dre_traces(created_at DESC, id DESC)`,
+  `CREATE TABLE IF NOT EXISTS abduction_runs (
+    id TEXT PRIMARY KEY,
+    claim_id TEXT,
+    egm_evaluation_id TEXT NOT NULL UNIQUE,
+    result_hash TEXT NOT NULL,
+    full_result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(claim_id) REFERENCES claims(id),
+    FOREIGN KEY(egm_evaluation_id) REFERENCES evaluations(id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_abduction_runs_created ON abduction_runs(created_at DESC,id DESC)`,
   `CREATE TABLE IF NOT EXISTS audit_events (
     id TEXT PRIMARY KEY,
     action TEXT NOT NULL,
@@ -384,6 +409,22 @@ export class SQLiteStorageAdapter implements StorageAdapter {
   async listDRETraces(limit: number): Promise<StoredDRETrace[]> {
     return this.db.prepare('SELECT * FROM dre_traces ORDER BY created_at DESC, id DESC LIMIT ?')
       .all(Math.max(1, Math.min(100, Math.floor(limit)))) as StoredDRETrace[];
+  }
+
+  // === ABDUCTIVE EXPERIMENTS ===
+  async insertAbductionRun(run: StoredAbductionRun): Promise<void> {
+    this.db.prepare(`
+      INSERT INTO abduction_runs (id,claim_id,egm_evaluation_id,result_hash,full_result_json,created_at)
+      VALUES (?,?,?,?,?,?)
+    `).run(run.id,run.claim_id,run.egm_evaluation_id,run.result_hash,run.full_result_json,run.created_at);
+  }
+  async getAbductionRun(id: string): Promise<StoredAbductionRun | null> {
+    const row = this.db.prepare('SELECT * FROM abduction_runs WHERE id=?').get(id) as StoredAbductionRun | undefined;
+    return row ?? null;
+  }
+  async listAbductionRuns(limit:number):Promise<StoredAbductionRun[]> {
+    return this.db.prepare('SELECT * FROM abduction_runs ORDER BY created_at DESC,id DESC LIMIT ?')
+      .all(Math.min(50,Math.max(1,Math.floor(limit)))) as StoredAbductionRun[];
   }
 
   // === AUDIT EVENTS ===

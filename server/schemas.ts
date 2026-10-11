@@ -73,3 +73,7 @@ export const dreInputSchema = z.object({
     }).strict(),
   ]),
 }).strict();
+
+export const abductionInputSchema = z.object({
+  claimId:z.string().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+}).strict();

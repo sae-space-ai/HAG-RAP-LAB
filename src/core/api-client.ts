@@ -231,3 +231,29 @@ export async function fetchDRE(input: DREInput): Promise<{ result: DREResult; cl
 export async function fetchDRETrace(id: string): Promise<{ result: DREResult; integrityValid: boolean }> {
   return fetchJson('/dre/evaluations/' + encodeURIComponent(id));
 }
+
+
+// Phase 2.2a: experimental abduction, SYNTHETIC ONLY and always ABSTAIN.
+export interface AbductionResult {
+  id:string;domain:'METEOROLOGICAL'|'TECHNICAL_SYSTEM'|null;
+  egmEvaluationId:string;egmVerdict:string;
+  verdict:'MULTIPLE_EXPLANATIONS'|'INSUFFICIENT_EVIDENCE'|'ERROR'|'NO_EXPLANATORY_RULE';
+  decision:'ABSTAIN';contentHash:string;
+  observation:{claimId:string;subject:string;predicate:string;value:string}|null;
+  candidates:Array<{
+    hypothesisId:string;ruleId:string;explanation:string;
+    state:'PROPOSED'|'REFUTED_BY_CORROBORATED_FACT'|'PARTIALLY_CORROBORATED';
+    assumptions:string[];
+    predictions:Array<{predicate:string;expectedValue:string;description:string;observedClaimIds:string[];
+      evidenceState:'CORROBORATED_MATCH'|'CORROBORATED_CONFLICT'|'UNKNOWN'}>;
+  }>;
+  discriminators:Array<{predicate:string;subject:string;expectedByHypothesis:Record<string,string>}>;
+  references:Array<{claimId:string;sourceId:string;evidenceLinkIds:string[];provenanceHashes:string[]}>;
+  missingInfo:string[];
+}
+export async function fetchAbduction(claimId:string):Promise<{result:AbductionResult}> {
+  return fetchJson('/dre/abduction/evaluate',{method:'POST',body:JSON.stringify({claimId})});
+}
+export async function fetchAbductionRun(id:string):Promise<{result:AbductionResult;integrityValid:boolean}> {
+  return fetchJson('/dre/abduction/runs/'+encodeURIComponent(id));
+}
