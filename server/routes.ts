@@ -62,7 +62,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
         workPackage: 'WP3',
         testReference: 'tests/integration/',
       },
-      { id: 'DRE', name: 'DRE-Lite', fullName: 'Bounded Evidence-Based Rule Inference', status: 'IMPLEMENTED_UNVERIFIED', description: 'Dos pasos de reglas sintéticas; no es razonamiento causal ni motor cognitivo general.', workPackage: 'WP3', testReference: 'tests/dre-lite.test.ts' },
+      { id: 'DRE', name: 'DRE-Lite', fullName: 'Bounded Evidence-Based Rule Inference', status: 'VERIFIED_IN_CI', description: 'Dos pasos de reglas sintéticas; no es razonamiento causal ni motor cognitivo general.', workPackage: 'WP3', testReference: 'tests/dre-lite.test.ts' },
       { id: 'AWE', name: 'AWE', fullName: 'Abstraction and World-Model Engine', status: 'NO_IMPLEMENTADO', description: 'Motor de abstracción. No implementado.', workPackage: 'WP4', testReference: null },
       { id: 'HCP', name: 'HCP', fullName: 'Hierarchical Contingent Planner', status: 'NO_IMPLEMENTADO', description: 'Planificador jerárquico. No implementado.', workPackage: 'WP5', testReference: null },
       { id: 'TAL', name: 'TAL', fullName: 'Trust and Assurance Layer', status: 'NO_IMPLEMENTADO', description: 'Capa de confianza. No implementado.', workPackage: 'WP6', testReference: null },
