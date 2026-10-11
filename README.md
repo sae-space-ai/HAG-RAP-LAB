@@ -1,255 +1,70 @@
-# HAG-RAP LAB — Prototipo Científico
+# HAG-RAP LAB — Prototipo experimental de razonamiento gobernado
 
-> **PROTOTIPO EXPERIMENTAL — DATOS SINTÉTICOS — SIN VALIDACIÓN TRL**
+**Datos sintéticos. Sin validación TRL ni autorización para decisiones reales.**
 
-## Estado Actual
+## Estado técnico acreditado
+- Phase 0: fundación y EGM-Lite
+- Phase 1: Express + SQLite + EGM persistent
+- Phase 2.1: DRE-Lite acotado, inferencias trazables con historial persistente
+- Phase 2.2a: abducción explicativa limitada sobre dos dominios sintéticos, siempre ABSTAIN
+- DRE científico general, AWE, HCP y certificación TRL: NO IMPLEMENTADO / NO ACREDITADO
 
-- **Fase 0:** ✅ PASS (cerrada)
-- **Fase 1:** ⚠️ PARTIAL / IMPLEMENTED_UNVERIFIED
+La verificación de CI está documentada en GitHub Actions; no demuestra que Vercel tenga un backend operativo.
 
-**Nota:** El código está completo pero no se ha verificado en ejecución debido a limitaciones del entorno de desarrollo. Para cerrar Fase 1 como PASS, ejecutar localmente con Node.js 22 LTS o publicar en GitHub.
+## Desarrollo local (Node 22+, npm 10+)
 
----
-
-## Requisitos
-
-- **Node.js:** 22 LTS (https://nodejs.org/)
-- **npm:** 10+ (incluido con Node.js)
-- **Sistema:** Windows 10/11, Linux, macOS
-- **NO requiere:** Python, Docker, GPU
-
----
-
-## Instalación
-
-```bash
-npm ci
-```
-
----
-
-## Comandos de Verificación
-
-### TypeCheck
-```bash
-npm run typecheck              # Frontend TypeScript
-npm run typecheck:server       # Backend TypeScript
-```
-
-### Build
-```bash
-npm run build                  # Frontend Vite
-```
-
-### Tests
-```bash
-npm test                       # 36 tests (Vitest)
-npm run test:coverage          # Con cobertura
-```
-
-### Servidor
-```bash
-npm run server                 # Express en http://localhost:4000
-```
-
-### Frontend (desarrollo)
-```bash
-npm run dev                    # Vite en http://localhost:5173
-```
-
----
-
-## Verificación Completa (Dos Terminales)
-
-### Terminal 1: Servidor
-```bash
-npm run server
-```
-Esperar: `✓ Server listening on http://localhost:4000`
-
-### Terminal 2: Pruebas
-```bash
-# Health check
-curl http://localhost:4000/api/v1/health
-
-# Evaluar caso
-curl -X POST http://localhost:4000/api/v1/evaluations \
-  -H "Content-Type: application/json" \
-  -d '{"claimId":"CLM-001","caseId":"CASE-001"}'
-
-# Ver historial
-curl http://localhost:4000/api/v1/evaluations
-```
-
-### Verificar Persistencia
-1. Detener servidor (Ctrl+C)
-2. Reiniciar: `npm run server`
-3. Consultar historial: `curl http://localhost:4000/api/v1/evaluations`
-4. La evaluación anterior debe seguir presente
-
----
-
-## Windows PowerShell
-
-Ver guía completa: `docs/VERIFY_WINDOWS_POWERSHELL.md`
-
-**Comandos rápidos:**
-```powershell
-node --version
-npm --version
+\`\`\`bash
 npm ci
 npm run typecheck
 npm run typecheck:server
-npm run build
 npm test
-npm run server  # Terminal 1
-# En Terminal 2:
-Invoke-RestMethod -Uri "http://localhost:4000/api/v1/health"
-```
+npm run build
+\`\`\`
 
----
+En **dos terminales**:
 
-## API Endpoints (11 rutas)
+\`\`\`bash
+npm run server
+\`\`\`
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | /api/v1/health | Estado del servidor |
-| GET | /api/v1/capabilities | 7 componentes |
-| GET | /api/v1/cases | 7 casos sintéticos |
-| GET | /api/v1/cases/:id | Detalle de caso |
-| POST | /api/v1/evaluations | Evaluar afirmación |
-| GET | /api/v1/evaluations/:id | Evaluación persistida |
-| GET | /api/v1/evaluations | Historial |
-| GET | /api/v1/sources | Fuentes |
-| GET | /api/v1/claims | Claims |
-| GET | /api/v1/audit | Auditoría |
-| POST | /api/v1/seed | Seed (requiere token) |
+\`\`\`bash
+npm run dev
+\`\`\`
 
----
+Abrir http://localhost:3000; el proxy de Vite dirige \`/api/v1\` a Express en http://localhost:4000. Comprobar http://localhost:4000/api/v1/health. Los datos de demostración se guardan en \`./data/hagrap.db\`.
 
-## Variables de Entorno
+## Publicación web y resolución del HTTP 404
 
-| Variable | Default | Descripción |
-|----------|---------|-------------|
-| `PORT` | 4000 | Puerto del servidor |
-| `DB_PATH` | ./data/hagrap.db | Ruta SQLite |
-| `CORS_ORIGINS` | localhost:3000,localhost:5173 | Orígenes CORS |
-| `HAGRAP_DEV_TOKEN` | (vacío) | Token para POST /seed |
-| `NODE_ENV` | development | Entorno |
+La SPA puede desplegarse como sitio estático en Vercel. **Eso no inicia Express ni mantiene SQLite.** Para que la web funcione en internet se requiere un backend Node accesible por HTTPS con almacenamiento persistente.
 
----
+1. Publicar el backend Node/Express en un alojamiento con disco persistente; \`render.yaml\` contiene una **opción de Render de pago** que requiere aprobación explícita.
+2. Configurar \`CORS_ORIGINS=https://SU-FRONTEND.vercel.app\` en el backend.
+3. Comprobar que \`https://SU-BACKEND/api/v1/health\` responde con JSON real.
+4. En Vercel, configurar variable de compilación \`VITE_API_BASE_URL=https://SU-BACKEND\`. No incluir \`/api/v1\` es válido; el cliente la añade.
+5. **Reconstruir y desplegar** el frontend para que incorpore la URL.
+6. Comprobar las peticiones en Network y el historial SQLite después de reiniciar el servicio.
 
-## Componentes
+Si no configura el backend externo, Vercel continuará mostrando el diagnóstico API 404; no es correcto presentar una respuesta simulada como un servidor activo.
 
-| ID | Nombre | Estado |
-|----|--------|--------|
-| EGM | Evidence Graph Memory (Persistent) | ✅ IMPLEMENTED |
-| DRE | Deep Reasoning Engine | ❌ NO_IMPLEMENTADO |
-| AWE | Abstraction and World-Model Engine | ❌ NO_IMPLEMENTADO |
-| HCP | Hierarchical Contingent Planner | ❌ NO_IMPLEMENTADO |
-| TAL | Trust and Assurance Layer | ❌ NO_IMPLEMENTADO |
-| HGI | Human Governance Interface | ❌ NO_IMPLEMENTADO |
-| RAEC | Resource-Aware Execution Controller | ❌ NO_IMPLEMENTADO |
+Guía: [docs/WEB_DEPLOYMENT_API_404.md](docs/WEB_DEPLOYMENT_API_404.md).
 
----
+## Variables
 
-## Casos Experimentales (7)
+Frontend (Vercel, build-time):
+- \`VITE_API_BASE_URL\`: URL pública HTTPS de Express, **no** un secreto. Vacío = mismo origen (válido detrás del proxy de desarrollo).
 
-| ID | Descripción | Verdict Esperado |
-|----|-------------|-----------------|
-| CASE-001 | Fuentes concordantes | SUPPORTED |
-| CASE-002 | Fuentes contradictorias | CONTRADICTED → ABSTAIN |
-| CASE-003 | Sin evidencia | INSUFFICIENT_EVIDENCE → ABSTAIN |
-| CASE-004 | Fuente inexistente | ERROR → ABSTAIN |
-| CASE-005 | Determinismo | SUPPORTED |
-| CASE-006 | Fuente derivada | INSUFFICIENT_EVIDENCE |
-| CASE-007 | Periodo diferente | SUPPORTED |
+Backend (Node, runtime):
+- \`PORT\`: puerto de Express; por defecto 4000.
+- \`DB_PATH\`: fichero SQLite con disco persistente.
+- \`CORS_ORIGINS\`: orígenes autorizados separados por coma, sin comodines.
+- \`HAGRAP_DEV_TOKEN\`: necesario para habilitar escritura en \`/seed\`.
+- \`NODE_ENV\`: production/test/development.
 
----
+SQLite es experimental y no es una base multiinstancia ni una plataforma endurecida para uso público. No introducir datos personales ni sensibles.
 
-## Estructura
+## Contratos
+- \`/api/v1/health\`, \`/api/v1/cases\`, \`/api/v1/evaluations\`
+- \`/api/v1/dre/rules\`, \`/api/v1/dre/evaluate\`, \`/api/v1/dre/evaluations\`
+- \`/api/v1/dre/abduction/rules\`, \`/api/v1/dre/abduction/evaluate\`, \`/api/v1/dre/abduction/runs\`
 
-```
-server/              — Backend Express + SQLite
-├── index.ts         — Entry point
-├── app.ts           — Configuración Express
-├── routes.ts        — 11 endpoints
-├── engine.ts        — Motor EGM-Persistent
-├── storage.ts       — SQLite + StorageAdapter
-├── schemas.ts       — Validación Zod
-└── seed.ts          — Datos sintéticos
-
-src/                 — Frontend React
-├── core/
-│   └── api-client.ts — Cliente HTTP
-├── components/      — UI React
-├── App.tsx          — Aplicación principal
-└── main.tsx         — Entry point
-
-tests/               — Tests Vitest
-├── egm-engine.test.ts
-└── integration/
-    ├── api.integration.test.ts
-    └── persistence.test.ts
-
-docs/                — Documentación
-.github/workflows/   — GitHub Actions
-```
-
----
-
-## GitHub Actions
-
-Workflow: `.github/workflows/verify.yml`
-
-**Triggers:** push, pull_request, workflow_dispatch  
-**Jobs:** verify (typecheck + build + tests), smoke-test (HTTP)
-
-**Para ejecutar:** Publicar repositorio en GitHub y hacer push.
-
----
-
-## Documentación
-
-- `docs/PHASE_1_GO_NO_GO_FINAL.md` — Veredicto final
-- `docs/PHASE_1_EXECUTION_MATRIX.md` — Matriz de ejecución
-- `docs/PHASE_1_HTTP_VERIFICATION.md` — Endpoints HTTP
-- `docs/PHASE_1_SQLITE_RESTART_PROOF.md` — Persistencia
-- `docs/PHASE_1_CI_REPORT.md` — CI/CD
-- `docs/VERIFY_WINDOWS_POWERSHELL.md` — Guía Windows
-- `docs/PHASE_1_API_OPENAPI.yaml` — OpenAPI spec
-
----
-
-## Limitaciones
-
-- SQLite local NO es apto para producción multiusuario
-- No hay inferencia causal, abstracción ni planificación
-- No se conecta a servicios externos ni modelos de IA
-- Todos los datos son sintéticos
-- TRL no validado
-
----
-
-## Seguridad
-
-- Validación Zod server-side
-- CORS configurable
-- Sin secretos en código
-- Token para endpoint seed (opcional)
-- Sin stack traces en errores
-
----
-
-## Veredicto
-
-**Fase 0:** ✅ PASS  
-**Fase 1:** ⚠️ PARTIAL (implementado, no verificado en ejecución)
-
-**Para cerrar Fase 1:** Ejecutar `docs/VERIFY_WINDOWS_POWERSHELL.md` o publicar en GitHub.
-
----
-
-## Licencia
-
-Prototipo científico de investigación. No para uso en producción.
+La respuesta del servidor debe ser JSON, sin falsos positivos cuando una SPA devuelve HTML con HTTP 200.

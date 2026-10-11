@@ -1,23 +1,37 @@
 /**
- * HAG-RAP Phase 1 — Frontend API Client
- * 
- * Uses real HTTP fetch to the backend server.
- * Shows SIN CONEXIÓN when backend is unavailable.
- * NEVER fabricates success data.
+ * HAG-RAP LAB browser HTTP client. Never fabricates backend data.
+ * Vite development proxy covers localhost. Production requires a real API.
  */
+import { resolveApiConfiguration } from './api-config';
 
-const API_BASE = '/api/v1';
+export type ApiFailureKind =
+  | 'API_ROUTE_NOT_FOUND' | 'NON_JSON_RESPONSE' | 'NETWORK_OR_CORS'
+  | 'API_HTTP_ERROR' | 'MISCONFIGURED_BACKEND' | null;
 
 export interface ApiState {
   connected: boolean;
   lastError: string | null;
   lastChecked: string | null;
+  failureKind: ApiFailureKind;
+  apiUrl: string;
+  source: 'same-origin' | 'external';
+}
+
+let resolved: ReturnType<typeof resolveApiConfiguration> = { baseUrl: '/api/v1', source: 'same-origin' };
+let configurationError: string | null = null;
+try {
+  resolved = resolveApiConfiguration(import.meta.env.VITE_API_BASE_URL);
+} catch (error) {
+  configurationError = error instanceof Error ? error.message : 'Backend API URL inválida';
 }
 
 let apiState: ApiState = {
   connected: false,
   lastError: null,
   lastChecked: null,
+  failureKind: null,
+  apiUrl: resolved.baseUrl,
+  source: resolved.source,
 };
 
 export function getApiState(): ApiState {
@@ -25,35 +39,57 @@ export function getApiState(): ApiState {
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const endpoint = resolved.baseUrl + url;
+  let kind: ApiFailureKind = null;
   try {
-    const response = await fetch(`${API_BASE}${url}`, {
+    if (configurationError) {
+      kind = 'MISCONFIGURED_BACKEND';
+      throw new Error(configurationError);
+    }
+    const response = await fetch(endpoint, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,
       },
-      signal: AbortSignal.timeout(5000), // 5s timeout
+      signal: AbortSignal.timeout(8000),
     });
 
+    if (response.status === 404) {
+      kind = 'API_ROUTE_NOT_FOUND';
+      throw new Error('HTTP 404: no existe el endpoint ' + endpoint + '. La web puede estar desplegada sin backend.');
+    }
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => null);
-      throw new Error(
-        errorBody?.message || `HTTP ${response.status}: ${response.statusText}`
-      );
+      kind = 'API_HTTP_ERROR';
+      const errorBody = await response.json().catch(() => null) as { message?: string } | null;
+      throw new Error(errorBody?.message || 'HTTP ' + response.status + ' en ' + endpoint);
+    }
+    if (!(response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+      kind = 'NON_JSON_RESPONSE';
+      throw new Error('El endpoint ' + endpoint + ' devolvió HTML u otro contenido, no JSON de la API.');
+    }
+    const data = await response.json() as T;
+    if (url === '/health') {
+      const health = data as { status?: unknown; version?: unknown };
+      if (typeof health?.status !== 'string' || typeof health?.version !== 'string') {
+        kind = 'NON_JSON_RESPONSE';
+        throw new Error('La ruta ' + endpoint + ' no devuelve la estructura JSON de HAG-RAP.');
+      }
     }
 
     apiState = {
-      connected: true,
-      lastError: null,
-      lastChecked: new Date().toISOString(),
+      connected: true, lastError: null, lastChecked: new Date().toISOString(),
+      failureKind: null, apiUrl: endpoint, source: resolved.source,
     };
-
-    return response.json();
+    return data;
   } catch (error) {
+    if (!kind) kind = 'NETWORK_OR_CORS';
     apiState = {
       connected: false,
-      lastError: error instanceof Error ? error.message : 'Unknown error',
+      lastError: error instanceof Error ? error.message : 'Error de red desconocido',
       lastChecked: new Date().toISOString(),
+      failureKind: kind,
+      apiUrl: endpoint, source: resolved.source,
     };
     throw error;
   }
