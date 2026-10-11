@@ -79,7 +79,7 @@ export class AbductionEngine {
   const egm=await this.egm.evaluate({claimId:input.claimId});
   const claim=await this.storage.getClaim(input.claimId);
   const result:AbductionResult={
-   id:'ABD-RUN-'+uuidv4().replaceAll('-','').slice(0,16).toUpperCase(),
+   id:'ABD-RUN-'+uuidv4().replace(/-/g,'').slice(0,16).toUpperCase(),
    version:ABDUCTION_VERSION,classification:'SYNTHETIC',domain:null,
    observation:claim?{claimId:claim.id,subject:claim.subject,predicate:claim.predicate,value:claim.object_value}:null,
    egmEvaluationId:egm.id,egmVerdict:egm.verdict,
