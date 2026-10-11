@@ -199,6 +199,8 @@ export type DREInput =
   | { claimId: string; hypothesis: { predicate: 'synthetic_review_priority'; value: 'LOW' | 'REVIEW' } };
 
 export interface DREResult {
+  id: string;
+  uncertainty: { kind: 'CORROBORATED' | 'CONFLICTING' | 'INSUFFICIENT' | 'INVALID'; calibratedProbability: false };
   algorithmVersion: string;
   classification: 'SYNTHETIC';
   claimId: string;
@@ -218,9 +220,14 @@ export interface DREResult {
   inputHash: string;
   traceHash: string;
   createdAt: string;
-  limits: { maxSteps: 2; persistentDRETrace: false; causalInference: false; autonomousActions: false };
+  limits: { maxSteps: 2; persistentDRETrace: true; causalInference: false; autonomousActions: false };
 }
 
 export async function fetchDRE(input: DREInput): Promise<{ result: DREResult; classification: string }> {
   return fetchJson('/dre/evaluate', { method: 'POST', body: JSON.stringify(input) });
+}
+
+
+export async function fetchDRETrace(id: string): Promise<{ result: DREResult; integrityValid: boolean }> {
+  return fetchJson('/dre/evaluations/' + encodeURIComponent(id));
 }

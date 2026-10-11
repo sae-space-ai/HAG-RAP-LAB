@@ -41,6 +41,11 @@ export interface StorageAdapter {
   getEvaluation(id: string): Promise<StoredEvaluation | null>;
   getAllEvaluations(): Promise<StoredEvaluation[]>;
   
+  // Persistent DRE inference traces (linked to persisted EGM evaluation)
+  insertDRETrace(trace: StoredDRETrace): Promise<void>;
+  getDRETrace(id: string): Promise<StoredDRETrace | null>;
+  listDRETraces(limit: number): Promise<StoredDRETrace[]>;
+
   // Audit Events
   insertAuditEvent(event: StoredAuditEvent): Promise<void>;
   getAuditEvents(): Promise<StoredAuditEvent[]>;
@@ -94,6 +99,19 @@ export interface StoredEvaluation {
   decision: string;
   applied_rule: string;
   inputs_hash: string;
+  created_at: string;
+  full_result_json: string;
+}
+
+export interface StoredDRETrace {
+  id: string;
+  claim_id: string | null;
+  egm_evaluation_id: string;
+  algorithm_version: string;
+  verdict: string;
+  decision: string;
+  input_hash: string;
+  trace_hash: string;
   created_at: string;
   full_result_json: string;
 }
@@ -158,6 +176,21 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL,
     full_result_json TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS dre_traces (
+    id TEXT PRIMARY KEY,
+    claim_id TEXT,
+    egm_evaluation_id TEXT NOT NULL UNIQUE,
+    algorithm_version TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    input_hash TEXT NOT NULL,
+    trace_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    full_result_json TEXT NOT NULL,
+    FOREIGN KEY (claim_id) REFERENCES claims(id),
+    FOREIGN KEY (egm_evaluation_id) REFERENCES evaluations(id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_dre_traces_created ON dre_traces(created_at DESC, id DESC)`,
   `CREATE TABLE IF NOT EXISTS audit_events (
     id TEXT PRIMARY KEY,
     action TEXT NOT NULL,
@@ -331,6 +364,26 @@ export class SQLiteStorageAdapter implements StorageAdapter {
   async getAllEvaluations(): Promise<StoredEvaluation[]> {
     const stmt = this.db.prepare('SELECT * FROM evaluations ORDER BY created_at DESC');
     return stmt.all() as StoredEvaluation[];
+  }
+
+  // === DRE TRACES ===
+  async insertDRETrace(trace: StoredDRETrace): Promise<void> {
+    this.db.prepare(`
+      INSERT INTO dre_traces (id, claim_id, egm_evaluation_id, algorithm_version,
+        verdict, decision, input_hash, trace_hash, created_at, full_result_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(trace.id, trace.claim_id, trace.egm_evaluation_id, trace.algorithm_version,
+      trace.verdict, trace.decision, trace.input_hash, trace.trace_hash,
+      trace.created_at, trace.full_result_json);
+  }
+
+  async getDRETrace(id: string): Promise<StoredDRETrace | null> {
+    return (this.db.prepare('SELECT * FROM dre_traces WHERE id = ?').get(id) as StoredDRETrace | undefined) || null;
+  }
+
+  async listDRETraces(limit: number): Promise<StoredDRETrace[]> {
+    return this.db.prepare('SELECT * FROM dre_traces ORDER BY created_at DESC, id DESC LIMIT ?')
+      .all(Math.max(1, Math.min(100, Math.floor(limit)))) as StoredDRETrace[];
   }
 
   // === AUDIT EVENTS ===

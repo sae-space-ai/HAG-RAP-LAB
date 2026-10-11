@@ -11,6 +11,7 @@
     "server:dev": "NODE_ENV=development tsx watch server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "benchmark:dre": "tsx scripts/dre-benchmark.ts",
     "test:coverage": "vitest run --coverage",
     "start": "npm run build && npm run server"
   },

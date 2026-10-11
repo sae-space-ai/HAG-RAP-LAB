@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { EGMEngine } from './engine';
 import type { StorageAdapter } from './storage';
 import { evaluationInputSchema, seedPayloadSchema, dreInputSchema } from './schemas';
-import { DRELite, DRE_RULES, DRE_VERSION } from './dre';
+import { DRELite, DRE_RULES, DRE_VERSION, verifyDRETrace, type DREResult } from './dre';
 import { seedSources, seedClaims, seedEvidenceLinks, seedScenarios } from './seed';
 import { ALGORITHM_VERSION } from './engine';
 
@@ -86,7 +86,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
       rules: DRE_RULES,
       maxSteps: 2,
       causalInference: false,
-      persistentDRETrace: false,
+      persistentDRETrace: true,
       externalActions: false,
     });
   });
@@ -109,6 +109,45 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
         code: 'DRE_EVALUATION_ERROR',
         message: 'No se pudo completar la inferencia experimental.',
       });
+    }
+  });
+
+  router.get('/dre/evaluations', async (_req: Request, res: Response) => {
+    try {
+      const records = await storage.listDRETraces(50);
+      return res.json({
+        evaluations: records.map(r => ({
+          id: r.id, claimId: r.claim_id, verdict: r.verdict,
+          decision: r.decision, traceHash: r.trace_hash,
+          createdAt: r.created_at,
+        })),
+        count: records.length,
+        classification: 'SYNTHETIC',
+      });
+    } catch {
+      return res.status(500).json({ code: 'DRE_HISTORY_ERROR', message: 'No se pudo recuperar el historial DRE.' });
+    }
+  });
+
+  router.get('/dre/evaluations/:id', async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+      if (typeof id !== 'string' || !/^DRE-EVAL-[A-Z0-9]+$/.test(id)) {
+        return res.status(400).json({ code: 'DRE_INVALID_ID', message: 'Identificador DRE incorrecto.' });
+      }
+      const record = await storage.getDRETrace(id);
+      if (!record) return res.status(404).json({ code: 'DRE_NOT_FOUND', message: 'Traza no encontrada.' });
+      const result: DREResult = JSON.parse(record.full_result_json);
+      const integrityValid = verifyDRETrace(result)
+        && result.id === record.id && result.egm.evaluationId === record.egm_evaluation_id
+        && result.inputHash === record.input_hash && result.traceHash === record.trace_hash;
+      if (!integrityValid) return res.status(409).json({
+        code: 'DRE_INTEGRITY_ERROR',
+        message: 'La traza almacenada no supera la verificación de integridad.',
+      });
+      return res.json({ result, integrityValid, classification: 'SYNTHETIC' });
+    } catch {
+      return res.status(500).json({ code: 'DRE_READ_ERROR', message: 'Error al recuperar la traza.' });
     }
   });
 
