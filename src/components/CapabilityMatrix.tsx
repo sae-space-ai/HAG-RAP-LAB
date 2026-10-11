@@ -1,27 +1,30 @@
-import type { CapabilitiesResponse, ComponentStatus } from '../core/types';
+import type { CapabilitiesData } from '../core/api-client';
 
 interface CapabilityMatrixProps {
-  capabilities: CapabilitiesResponse | null;
+  capabilities: CapabilitiesData | null;
 }
 
-function StatusBadge({ status }: { status: ComponentStatus }) {
-  const styles: Record<ComponentStatus, string> = {
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
     'VERIFICADO_LOCAL': 'bg-green-900/50 text-green-300 border-green-700',
     'IMPLEMENTADO_SIN_VERIFICAR': 'bg-yellow-900/50 text-yellow-300 border-yellow-700',
     'NO_IMPLEMENTADO': 'bg-gray-800 text-gray-500 border-gray-700',
     'BLOQUEADO': 'bg-red-900/50 text-red-300 border-red-700',
   };
 
-  const labels: Record<ComponentStatus, string> = {
+  const labels: Record<string, string> = {
     'VERIFICADO_LOCAL': '✓ Verificado Local',
     'IMPLEMENTADO_SIN_VERIFICAR': '⚡ Sin Verificar',
     'NO_IMPLEMENTADO': '✗ No Implementado',
     'BLOQUEADO': '⊘ Bloqueado',
   };
 
+  const style = styles[status] || styles['NO_IMPLEMENTADO'];
+  const label = labels[status] || status;
+
   return (
-    <span className={`text-xs px-2 py-0.5 rounded border ${styles[status]}`}>
-      {labels[status]}
+    <span className={`text-xs px-2 py-0.5 rounded border ${style}`}>
+      {label}
     </span>
   );
 }
