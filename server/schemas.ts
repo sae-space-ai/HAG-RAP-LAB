@@ -57,3 +57,19 @@ export const seedPayloadSchema = z.object({
 
 export type EvaluationInputDTO = z.infer<typeof evaluationInputSchema>;
 export type SeedPayloadDTO = z.infer<typeof seedPayloadSchema>;
+
+
+// Phase 2 accepts only a finite, documented experimental rule vocabulary.
+export const dreInputSchema = z.object({
+  claimId: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/),
+  hypothesis: z.discriminatedUnion('predicate', [
+    z.object({
+      predicate: z.literal('synthetic_temperature_band'),
+      value: z.enum(['IN_RANGE', 'OUT_OF_RANGE']),
+    }).strict(),
+    z.object({
+      predicate: z.literal('synthetic_review_priority'),
+      value: z.enum(['LOW', 'REVIEW']),
+    }).strict(),
+  ]),
+}).strict();

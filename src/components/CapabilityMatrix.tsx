@@ -7,6 +7,8 @@ interface CapabilityMatrixProps {
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     'VERIFICADO_LOCAL': 'bg-green-900/50 text-green-300 border-green-700',
+    'VERIFIED_IN_CI': 'bg-green-900/50 text-green-300 border-green-700',
+    'IMPLEMENTED_UNVERIFIED': 'bg-yellow-900/50 text-yellow-300 border-yellow-700',
     'IMPLEMENTADO_SIN_VERIFICAR': 'bg-yellow-900/50 text-yellow-300 border-yellow-700',
     'NO_IMPLEMENTADO': 'bg-gray-800 text-gray-500 border-gray-700',
     'BLOQUEADO': 'bg-red-900/50 text-red-300 border-red-700',
@@ -14,6 +16,8 @@ function StatusBadge({ status }: { status: string }) {
 
   const labels: Record<string, string> = {
     'VERIFICADO_LOCAL': '✓ Verificado Local',
+    'VERIFIED_IN_CI': '✓ Verificado en CI',
+    'IMPLEMENTED_UNVERIFIED': 'Pendiente de CI',
     'IMPLEMENTADO_SIN_VERIFICAR': '⚡ Sin Verificar',
     'NO_IMPLEMENTADO': '✗ No Implementado',
     'BLOQUEADO': '⊘ Bloqueado',

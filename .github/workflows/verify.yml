@@ -112,6 +112,19 @@ jobs:
           -H "Content-Type: application/json" \
           -d '{"claimId":"CLM-001","caseId":"CASE-001"}' || exit 1
     
+    - name: Verify DRE-Lite HTTP hypotheses and provenance
+      run: |
+        set -euo pipefail
+        curl -fsS "http://localhost:4000/api/v1/dre/rules" > /tmp/hagrap-dre-rules.json
+        curl -fsS -X POST http://localhost:4000/api/v1/dre/evaluate \
+          -H "Content-Type: application/json" \
+          -d '{"claimId":"CLM-001","hypothesis":{"predicate":"synthetic_review_priority","value":"LOW"}}' > /tmp/hagrap-dre-result.json
+        node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync("/tmp/hagrap-dre-result.json","utf8")).result; if(x.verdict!=="ENTAILED" || x.trace.length!==2 || x.references.length<2 || x.decision!=="PROCEED") process.exit(1); console.log("PASS DRE-Lite inference:",x.traceHash)'
+        curl -fsS -X POST http://localhost:4000/api/v1/dre/evaluate \
+          -H "Content-Type: application/json" \
+          -d '{"claimId":"CLM-002","hypothesis":{"predicate":"synthetic_review_priority","value":"REVIEW"}}' > /tmp/hagrap-dre-abstain.json
+        node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync("/tmp/hagrap-dre-abstain.json","utf8")).result; if(x.verdict!=="INCONSISTENT_EVIDENCE" || x.decision!=="ABSTAIN") process.exit(1); console.log("PASS DRE-Lite abstention")'
+
     - name: Verify SQLite persistence across process restart
       run: |
         set -euo pipefail
