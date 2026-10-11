@@ -83,10 +83,20 @@ jobs:
     
     - name: Start Server
       run: |
-        npm run server &
-        SERVER_PID=$!
-        echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
-        sleep 5
+        node --import tsx server/index.ts > /tmp/hagrap-start.log 2>&1 &
+        echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+        READY=0
+        for i in $(seq 1 30); do
+          if curl -fsS http://localhost:4000/api/v1/health >/dev/null; then
+            READY=1
+            break
+          fi
+          sleep 1
+        done
+        if [ "$READY" != "1" ]; then
+          cat /tmp/hagrap-start.log
+          exit 1
+        fi
     
     - name: Health Check
       run: |
@@ -102,9 +112,41 @@ jobs:
           -H "Content-Type: application/json" \
           -d '{"claimId":"CLM-001","caseId":"CASE-001"}' || exit 1
     
+    - name: Verify SQLite persistence across process restart
+      run: |
+        set -euo pipefail
+        curl -fsS -X POST http://localhost:4000/api/v1/evaluations \
+          -H "Content-Type: application/json" \
+          -d '{"claimId":"CLM-001","caseId":"CASE-001"}' > /tmp/hagrap-before.json
+        node -e "const a=require('/tmp/hagrap-before.json'); if(!a.evaluation?.id) process.exit(1)"
+        kill "$SERVER_PID"
+        sleep 2
+        node --import tsx server/index.ts > /tmp/hagrap-restart.log 2>&1 &
+        echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+        READY=0
+        for i in $(seq 1 30); do
+          if curl -fsS http://localhost:4000/api/v1/health >/dev/null; then
+            READY=1
+            break
+          fi
+          sleep 1
+        done
+        if [ "$READY" != "1" ]; then
+          cat /tmp/hagrap-restart.log
+          exit 1
+        fi
+        EVAL_ID=$(node -e "process.stdout.write(require('/tmp/hagrap-before.json').evaluation.id)")
+        curl -fsS "http://localhost:4000/api/v1/evaluations/$EVAL_ID" > /tmp/hagrap-after.json
+        node -e "const a=require('/tmp/hagrap-before.json').evaluation;const b=require('/tmp/hagrap-after.json').evaluation;if(a.id!==b.id || a.inputsHash!==b.inputsHash) process.exit(1);console.log('PASS: persisted evaluation restored after process restart:',a.id)"
+
+    - name: Verify seed endpoint locked without token
+      run: |
+        STATUS=$(curl -s -o /tmp/hagrap-seed.json -w '%{http_code}' -X POST http://localhost:4000/api/v1/seed -H "Content-Type: application/json" -d '{}')
+        test "$STATUS" = "401"
+
     - name: Stop Server
       if: always()
       run: |
-        if [ ! -z "$SERVER_PID" ]; then
-          kill $SERVER_PID || true
+        if [ -n "${SERVER_PID:-}" ]; then
+          kill "$SERVER_PID" || true
         fi
