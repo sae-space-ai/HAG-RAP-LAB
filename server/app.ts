@@ -62,7 +62,7 @@ export function createApp(deps: AppDependencies) {
   app.use(express.static(distPath));
 
   // SPA fallback — serve index.html for non-API routes
-  app.get('*', (req, res, next) => {
+  app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith('/api/')) {
       return next();
     }

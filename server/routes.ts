@@ -30,7 +30,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
         runtime: 'NODE_EXPRESS_SQLITE',
         dependencies: {
           storage: 'SQLite_LOCAL',
-          coreLogic: 'VERIFIED',
+          coreLogic: 'IMPLEMENTED_UNVERIFIED',
           externalServices: 'NONE_CONNECTED',
         },
         stats: {
@@ -55,7 +55,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
         id: 'EGM',
         name: 'EGM-Persistent',
         fullName: 'Evidence Graph Memory (Persistent)',
-        status: 'VERIFICADO_LOCAL',
+        status: 'IMPLEMENTED_UNVERIFIED',
         description: 'Motor de evaluación con persistencia SQLite, procedencia y auditoría.',
         workPackage: 'WP3',
         testReference: 'tests/integration/',
@@ -130,7 +130,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
           error: 'Validation error',
           code: 'INVALID_INPUT',
           message: 'Los datos de entrada no son válidos.',
-          details: parsed.error.errors,
+          details: parsed.error.issues,
         });
       }
 
@@ -153,7 +153,11 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
   // === GET /api/v1/evaluations/:id ===
   router.get('/evaluations/:id', async (req: Request, res: Response) => {
     try {
-      const evaluation = await storage.getEvaluation(req.params.id);
+      const evaluationId = req.params.id;
+      if (typeof evaluationId !== 'string') {
+        return res.status(400).json({ error: 'Invalid ID', code: 'INVALID_ID' });
+      }
+      const evaluation = await storage.getEvaluation(evaluationId);
       if (!evaluation) {
         return res.status(404).json({
           error: 'Evaluation not found',
@@ -205,7 +209,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
     const devToken = process.env.HAGRAP_DEV_TOKEN;
     const providedToken = req.headers['x-dev-token'];
     
-    if (devToken && providedToken !== devToken) {
+    if (!devToken || providedToken !== devToken) {
       return res.status(401).json({
         error: 'Unauthorized',
         code: 'INVALID_DEV_TOKEN',

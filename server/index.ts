@@ -8,7 +8,7 @@
  * - PORT: Server port (default: 4000)
  * - DB_PATH: SQLite database path (default: ./data/hagrap.db)
  * - CORS_ORIGINS: Comma-separated allowed origins
- * - HAGRAP_DEV_TOKEN: Token for seed endpoint (optional)
+ * - HAGRAP_DEV_TOKEN: Token required to enable seed endpoint
  * - NODE_ENV: 'development' | 'production' | 'test'
  */
 
