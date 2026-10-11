@@ -9,12 +9,14 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import type { EGMEngine } from './engine';
 import type { StorageAdapter } from './storage';
-import { evaluationInputSchema, seedPayloadSchema } from './schemas';
+import { evaluationInputSchema, seedPayloadSchema, dreInputSchema } from './schemas';
+import { DRELite, DRE_RULES, DRE_VERSION } from './dre';
 import { seedSources, seedClaims, seedEvidenceLinks, seedScenarios } from './seed';
 import { ALGORITHM_VERSION } from './engine';
 
 export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router {
   const router = Router();
+  const dre = new DRELite(storage, engine);
 
   // === GET /api/v1/health ===
   router.get('/health', async (_req: Request, res: Response) => {
@@ -30,7 +32,7 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
         runtime: 'NODE_EXPRESS_SQLITE',
         dependencies: {
           storage: 'SQLite_LOCAL',
-          coreLogic: 'IMPLEMENTED_UNVERIFIED',
+          coreLogic: 'VERIFIED_IN_CI',
           externalServices: 'NONE_CONNECTED',
         },
         stats: {
@@ -55,12 +57,12 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
         id: 'EGM',
         name: 'EGM-Persistent',
         fullName: 'Evidence Graph Memory (Persistent)',
-        status: 'IMPLEMENTED_UNVERIFIED',
+        status: 'VERIFIED_IN_CI',
         description: 'Motor de evaluación con persistencia SQLite, procedencia y auditoría.',
         workPackage: 'WP3',
         testReference: 'tests/integration/',
       },
-      { id: 'DRE', name: 'DRE', fullName: 'Deep Reasoning Engine', status: 'NO_IMPLEMENTADO', description: 'Motor de razonamiento profundo. No implementado.', workPackage: 'WP3', testReference: null },
+      { id: 'DRE', name: 'DRE-Lite', fullName: 'Bounded Evidence-Based Rule Inference', status: 'IMPLEMENTED_UNVERIFIED', description: 'Dos pasos de reglas sintéticas; no es razonamiento causal ni motor cognitivo general.', workPackage: 'WP3', testReference: 'tests/dre-lite.test.ts' },
       { id: 'AWE', name: 'AWE', fullName: 'Abstraction and World-Model Engine', status: 'NO_IMPLEMENTADO', description: 'Motor de abstracción. No implementado.', workPackage: 'WP4', testReference: null },
       { id: 'HCP', name: 'HCP', fullName: 'Hierarchical Contingent Planner', status: 'NO_IMPLEMENTADO', description: 'Planificador jerárquico. No implementado.', workPackage: 'WP5', testReference: null },
       { id: 'TAL', name: 'TAL', fullName: 'Trust and Assurance Layer', status: 'NO_IMPLEMENTADO', description: 'Capa de confianza. No implementado.', workPackage: 'WP6', testReference: null },
@@ -70,10 +72,44 @@ export function createRouter(engine: EGMEngine, storage: StorageAdapter): Router
 
     res.json({
       components: capabilities,
-      totalImplemented: 1,
-      totalNotImplemented: 6,
+      totalImplemented: 2,
+      totalNotImplemented: 5,
       generatedAt: new Date().toISOString(),
     });
+  });
+
+  // === PHASE 2: bounded deterministic DRE-Lite ===
+  router.get('/dre/rules', (_req: Request, res: Response) => {
+    res.json({
+      version: DRE_VERSION,
+      classification: 'SYNTHETIC',
+      rules: DRE_RULES,
+      maxSteps: 2,
+      causalInference: false,
+      persistentDRETrace: false,
+      externalActions: false,
+    });
+  });
+
+  router.post('/dre/evaluate', async (req: Request, res: Response) => {
+    const parsed = dreInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        code: 'DRE_INVALID_INPUT',
+        message: 'Hipótesis inválida para el demostrador de reglas sintéticas.',
+        details: parsed.error.issues,
+      });
+    }
+    try {
+      const result = await dre.evaluate(parsed.data);
+      return res.status(201).json({ result, classification: 'SYNTHETIC' });
+    } catch (error) {
+      console.error('DRE-Lite error:', error);
+      return res.status(500).json({
+        code: 'DRE_EVALUATION_ERROR',
+        message: 'No se pudo completar la inferencia experimental.',
+      });
+    }
   });
 
   // === GET /api/v1/cases ===

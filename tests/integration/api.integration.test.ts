@@ -69,11 +69,11 @@ describe('HAG-RAP API Integration Tests', () => {
     const res = await request(app).get('/api/v1/capabilities');
     expect(res.status).toBe(200);
     expect(res.body.components).toHaveLength(7);
-    expect(res.body.totalImplemented).toBe(1);
-    expect(res.body.totalNotImplemented).toBe(6);
+    expect(res.body.totalImplemented).toBe(2);
+    expect(res.body.totalNotImplemented).toBe(5);
     
     const egm = res.body.components.find((c: any) => c.id === 'EGM');
-    expect(egm.status).toBe('IMPLEMENTED_UNVERIFIED');
+    expect(egm.status).toBe('VERIFIED_IN_CI');
   });
 
   // === TEST: Cases list ===

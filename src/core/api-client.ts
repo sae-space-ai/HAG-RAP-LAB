@@ -191,3 +191,36 @@ export async function checkConnection(): Promise<boolean> {
     return false;
   }
 }
+
+
+// Phase 2 DRE-Lite: bounded synthetic hypotheses, real Express API only.
+export type DREInput =
+  | { claimId: string; hypothesis: { predicate: 'synthetic_temperature_band'; value: 'IN_RANGE' | 'OUT_OF_RANGE' } }
+  | { claimId: string; hypothesis: { predicate: 'synthetic_review_priority'; value: 'LOW' | 'REVIEW' } };
+
+export interface DREResult {
+  algorithmVersion: string;
+  classification: 'SYNTHETIC';
+  claimId: string;
+  hypothesis: DREInput['hypothesis'];
+  verdict: 'ENTAILED' | 'CONTRADICTED' | 'INCONSISTENT_EVIDENCE' | 'UNDETERMINED' | 'ERROR';
+  decision: 'PROCEED' | 'ABSTAIN';
+  explanation: string;
+  egm: { evaluationId: string; verdict: string; decision: string; appliedRule: string; inputsHash: string };
+  trace: Array<{
+    stepId: string; ruleId: string;
+    premises: Array<{ subject: string; predicate: string; value: string }>;
+    conclusion: { subject: string; predicate: string; value: string };
+    references: Array<{ claimId: string; sourceId: string; evidenceLinkIds: string[]; provenanceHashes: string[] }>;
+  }>;
+  references: Array<{ claimId: string; sourceId: string; evidenceLinkIds: string[]; provenanceHashes: string[] }>;
+  missingInfo: string[];
+  inputHash: string;
+  traceHash: string;
+  createdAt: string;
+  limits: { maxSteps: 2; persistentDRETrace: false; causalInference: false; autonomousActions: false };
+}
+
+export async function fetchDRE(input: DREInput): Promise<{ result: DREResult; classification: string }> {
+  return fetchJson('/dre/evaluate', { method: 'POST', body: JSON.stringify(input) });
+}

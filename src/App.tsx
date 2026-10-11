@@ -29,6 +29,7 @@ import { CaseSelector } from './components/CaseSelector';
 import { EvaluationPanel } from './components/EvaluationPanel';
 import { ConnectionBanner } from './components/ConnectionBanner';
 import { EvaluationHistory } from './components/EvaluationHistory';
+import { DREPanel } from './components/DREPanel';
 
 export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -126,9 +127,9 @@ export default function App() {
                 PROTOTIPO EXPERIMENTAL — DATOS SINTÉTICOS — SIN VALIDACIÓN TRL
               </h3>
               <p className="text-amber-200/80 text-sm mt-1">
-                Este sistema es un prototipo de Fase 1 con persistencia SQLite. Todos los datos son sintéticos.
-                No existe inferencia causal, razonamiento profundo, abstracción, planificación ni certificación implementados.
-                Solo el módulo EGM-Persistent tiene funcionalidad real verificada. No tomar decisiones operativas basadas en estos resultados.
+                Este sistema incorpora EGM persistente y DRE-Lite experimental. Todos los datos son sintéticos.
+                El DRE-Lite solo aplica reglas deterministas limitadas y trazables: no existe inferencia causal avanzada, planificación ni certificación.
+                No tomar decisiones operativas basadas en estos resultados.
               </p>
             </div>
           </div>
@@ -182,6 +183,9 @@ export default function App() {
               </div>
             </section>
 
+            {/* Phase 2: real bounded inference through backend HTTP */}
+            <DREPanel cases={cases} />
+
             {/* Evaluation History */}
             <section>
               <h2 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
@@ -196,7 +200,7 @@ export default function App() {
         {/* Footer */}
         <footer className="border-t border-gray-800 pt-6 mt-12">
           <div className="text-center text-gray-500 text-sm space-y-1">
-            <p>HAG-RAP LAB — Fase 1 — Prototipo con Persistencia SQLite</p>
+            <p>HAG-RAP LAB — Fase 2 inicial — EGM persistente + DRE-Lite experimental</p>
             <p>
               {health && (
                 <>
