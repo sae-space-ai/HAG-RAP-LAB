@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fetchDRE, type CaseData, type DREResult, type DREInput } from '../core/api-client';
+import { fetchDRE, fetchDRETrace, type CaseData, type DREResult, type DREInput } from '../core/api-client';
 
 type Props = { cases: CaseData[] };
 
@@ -9,6 +9,8 @@ export function DREPanel({ cases }: Props) {
   const [value, setValue] = useState('LOW');
   const [result, setResult] = useState<DREResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [savedVerified, setSavedVerified] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const run = async () => {
@@ -17,6 +19,7 @@ export function DREPanel({ cases }: Props) {
     setBusy(true);
     setResult(null);
     setError(null);
+    setSavedVerified(null);
     try {
       const payload: DREInput = predicate === 'synthetic_temperature_band'
         ? { claimId: chosen.claimId, hypothesis: { predicate, value: value as 'IN_RANGE' | 'OUT_OF_RANGE' } }
@@ -27,6 +30,20 @@ export function DREPanel({ cases }: Props) {
       setError(e instanceof Error ? e.message : 'No se pudo evaluar la hipótesis.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const loadSaved = async (id: string) => {
+    setLoadingSaved(true);
+    setError(null);
+    try {
+      const saved = await fetchDRETrace(id);
+      setResult(saved.result);
+      setSavedVerified(saved.integrityValid);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo recuperar la traza almacenada.');
+    } finally {
+      setLoadingSaved(false);
     }
   };
 
@@ -80,6 +97,14 @@ export function DREPanel({ cases }: Props) {
           <span className="text-xs text-gray-500">EGM: {result.egm.verdict}</span>
         </div>
         <p className="text-gray-300 text-sm">{result.explanation}</p>
+        <div className="text-xs text-indigo-300">
+          Incertidumbre de evidencia: {result.uncertainty.kind}; probabilidad calibrada: NO.
+        </div>
+        <button onClick={() => loadSaved(result.id)} disabled={loadingSaved}
+          className="border border-indigo-600 text-indigo-200 px-3 py-2 rounded text-xs disabled:opacity-50">
+          {loadingSaved ? 'Recuperando de SQLite...' : 'Recuperar esta traza desde SQLite'}
+        </button>
+        {savedVerified === true && <p className="text-green-300 text-xs">La traza persistida coincide con su resumen de integridad.</p>}
         {result.missingInfo.length > 0 &&
           <p className="text-amber-300 text-xs">Pendiente: {result.missingInfo.join('; ')}</p>}
         <h3 className="font-semibold text-indigo-200 text-sm">Trazas de inferencia ({result.trace.length})</h3>
@@ -96,7 +121,7 @@ export function DREPanel({ cases }: Props) {
           <summary className="cursor-pointer">Ver procedencia, hashes y JSON completo</summary>
           <pre className="overflow-auto whitespace-pre-wrap break-all mt-2 p-2 bg-gray-900">{JSON.stringify(result, null, 2)}</pre>
         </details>
-        <p className="text-xs text-gray-500">DRE v0.1: trazas no persistidas. La evaluación EGM sí queda en SQLite. Sin acciones externas.</p>
+        <p className="text-xs text-gray-500">DRE v0.2: traza DRE y evaluación EGM persistidas en SQLite. Sin acciones externas.</p>
       </div>}
     </section>
   );

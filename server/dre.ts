@@ -4,10 +4,10 @@
  * Not a causal model, an LLM, formal proof, or a real-world decision system.
  */
 import { createHash } from 'node:crypto';
-import type { StorageAdapter, StoredClaim, StoredEvidenceLink } from './storage';
+import type { StorageAdapter, StoredClaim, StoredEvidenceLink, StoredDRETrace } from './storage';
 import type { EGMEngine, EvaluationResult } from './engine';
 
-export const DRE_VERSION = 'DRE-LITE-v0.1.0';
+export const DRE_VERSION = 'DRE-LITE-v0.2.0';
 export type DREPredicate = 'synthetic_temperature_band' | 'synthetic_review_priority';
 export type DREVerdict = 'ENTAILED' | 'CONTRADICTED' | 'INCONSISTENT_EVIDENCE' | 'UNDETERMINED' | 'ERROR';
 export type DREValue = 'IN_RANGE' | 'OUT_OF_RANGE' | 'LOW' | 'REVIEW';
@@ -28,7 +28,11 @@ export interface DREStep {
   conclusion: DREProposition;
   references: DREReference[];
 }
+export type EpistemicState = 'CORROBORATED' | 'CONFLICTING' | 'INSUFFICIENT' | 'INVALID';
+
 export interface DREResult {
+  id: string;
+  uncertainty: { kind: EpistemicState; calibratedProbability: false };
   algorithmVersion: string;
   classification: 'SYNTHETIC';
   claimId: string;
@@ -43,7 +47,7 @@ export interface DREResult {
   inputHash: string;
   traceHash: string;
   createdAt: string;
-  limits: { maxSteps: 2; persistentDRETrace: false; causalInference: false; autonomousActions: false };
+  limits: { maxSteps: 2; persistentDRETrace: true; causalInference: false; autonomousActions: false };
 }
 
 export const DRE_RULES = [
@@ -52,6 +56,30 @@ export const DRE_RULES = [
   { id: 'DRE-R03-LOW', premise: 'synthetic_temperature_band=IN_RANGE', conclusion: 'synthetic_review_priority=LOW' },
   { id: 'DRE-R04-REVIEW', premise: 'synthetic_temperature_band=OUT_OF_RANGE', conclusion: 'synthetic_review_priority=REVIEW' },
 ] as const;
+
+function traceDigestData(result: DREResult) {
+  return {
+    version: result.algorithmVersion,
+    inputHash: result.inputHash,
+    verdict: result.verdict,
+    decision: result.decision,
+    uncertainty: result.uncertainty,
+    egm: {
+      verdict: result.egm.verdict,
+      decision: result.egm.decision,
+      appliedRule: result.egm.appliedRule,
+      inputsHash: result.egm.inputsHash,
+    },
+    explanation: result.explanation,
+    trace: result.trace,
+    references: result.references,
+    missingInfo: result.missingInfo,
+  };
+}
+
+export function verifyDRETrace(result: DREResult): boolean {
+  return digest(traceDigestData(result)) === result.traceHash;
+}
 
 function digest(input: unknown): string {
   return createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -71,6 +99,13 @@ export class DRELite {
     const evaluation = await this.egm.evaluate({ claimId: input.claimId });
     const hypothesis = input.hypothesis;
     const result: DREResult = {
+      id: 'DRE-' + evaluation.id,
+      uncertainty: {
+        kind: evaluation.verdict === 'SUPPORTED' ? 'CORROBORATED'
+          : evaluation.verdict === 'CONTRADICTED' ? 'CONFLICTING'
+          : evaluation.verdict === 'ERROR' ? 'INVALID' : 'INSUFFICIENT',
+        calibratedProbability: false,
+      },
       algorithmVersion: DRE_VERSION,
       classification: 'SYNTHETIC',
       claimId: input.claimId,
@@ -91,13 +126,19 @@ export class DRELite {
       inputHash: digest({ version: DRE_VERSION, claimId: input.claimId, hypothesis }),
       traceHash: '',
       createdAt: new Date().toISOString(),
-      limits: { maxSteps: 2, persistentDRETrace: false, causalInference: false, autonomousActions: false },
+      limits: { maxSteps: 2, persistentDRETrace: true, causalInference: false, autonomousActions: false },
     };
-    const finish = (): DREResult => {
-      result.traceHash = digest({
-        version: DRE_VERSION, inputHash: result.inputHash, verdict: result.verdict,
-        trace: result.trace, references: result.references, missingInfo: result.missingInfo,
-      });
+    const finish = async (): Promise<DREResult> => {
+      result.traceHash = digest(traceDigestData(result));
+      const record: StoredDRETrace = {
+        id: result.id, claim_id: (await this.storage.getClaim(input.claimId)) ? input.claimId : null,
+        egm_evaluation_id: evaluation.id,
+        algorithm_version: DRE_VERSION, verdict: result.verdict,
+        decision: result.decision, input_hash: result.inputHash,
+        trace_hash: result.traceHash, created_at: result.createdAt,
+        full_result_json: JSON.stringify(result),
+      };
+      await this.storage.insertDRETrace(record);
       return result;
     };
     if (evaluation.verdict === 'CONTRADICTED') {
