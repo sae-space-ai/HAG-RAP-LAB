@@ -1,134 +1,149 @@
-# HAG-RAP LAB — Prototipo Científico Fase 1
+# HAG-RAP LAB — Prototipo Científico
 
 > **PROTOTIPO EXPERIMENTAL — DATOS SINTÉTICOS — SIN VALIDACIÓN TRL**
 
-## Finalidad
+## Estado Actual
 
-HAG-RAP investiga una arquitectura cognitiva con memoria de evidencias, razonamiento, abstracción, planificación y supervisión humana. Este repositorio contiene las Fases 0 y 1 del prototipo.
+- **Fase 0:** ✅ PASS (cerrada)
+- **Fase 1:** ⚠️ PARTIAL / IMPLEMENTED_UNVERIFIED
 
-**Fase 0:** Motor EGM-Lite in-memory con evaluación determinista.  
-**Fase 1:** API HTTP real (Express), persistencia SQLite, frontend conectado.
+**Nota:** El código está completo pero no se ha verificado en ejecución debido a limitaciones del entorno de desarrollo. Para cerrar Fase 1 como PASS, ejecutar localmente con Node.js 22 LTS o publicar en GitHub.
 
-## ⚠️ Límites Críticos
+---
 
-- **Todos los datos son sintéticos** (clasificación: SYNTHETIC)
-- **Solo EGM-Persistent tiene funcionalidad real** (6 componentes NO_IMPLEMENTADO)
-- **No hay inferencia causal, abstracción, planificación ni certificación**
-- **SQLite local NO es apto para producción multiusuario**
-- **No se conecta a servicios externos ni modelos de IA**
+## Requisitos
+
+- **Node.js:** 22 LTS (https://nodejs.org/)
+- **npm:** 10+ (incluido con Node.js)
+- **Sistema:** Windows 10/11, Linux, macOS
+- **NO requiere:** Python, Docker, GPU
+
+---
 
 ## Instalación
 
 ```bash
-npm install
+npm ci
 ```
 
-## Comandos
+---
 
-### Desarrollo Frontend
+## Comandos de Verificación
+
+### TypeCheck
 ```bash
-npm run dev          # Vite dev server en http://localhost:5173
+npm run typecheck              # Frontend TypeScript
+npm run typecheck:server       # Backend TypeScript
 ```
 
-### Servidor Backend
+### Build
 ```bash
-npm run server       # Express en http://localhost:4000
-npm run server:dev   # Con hot reload (tsx watch)
+npm run build                  # Frontend Vite
 ```
 
-### Producción (local)
+### Tests
 ```bash
-npm run start        # Build + servidor
+npm test                       # 36 tests (Vitest)
+npm run test:coverage          # Con cobertura
 ```
 
-### Verificación
+### Servidor
 ```bash
-npm run build            # Build frontend (Vite)
-npm run typecheck        # TypeScript frontend
-npm run typecheck:server # TypeScript servidor
-npm test                 # Tests unitarios + integración
-npm run test:coverage    # Con cobertura
+npm run server                 # Express en http://localhost:4000
 ```
 
-### PowerShell (Windows)
-```powershell
-npm install
-npm run build
+### Frontend (desarrollo)
+```bash
+npm run dev                    # Vite en http://localhost:5173
+```
+
+---
+
+## Verificación Completa (Dos Terminales)
+
+### Terminal 1: Servidor
+```bash
 npm run server
-# En otra ventana:
-npm test
 ```
+Esperar: `✓ Server listening on http://localhost:4000`
 
-## Variables de Entorno
-
-| Variable | Default | Descripción |
-|----------|---------|-------------|
-| `PORT` | 4000 | Puerto del servidor |
-| `DB_PATH` | ./data/hagrap.db | Ruta base de datos SQLite |
-| `CORS_ORIGINS` | localhost:3000,localhost:5173 | Orígenes CORS |
-| `HAGRAP_DEV_TOKEN` | (vacío) | Token para POST /seed |
-| `NODE_ENV` | development | Entorno |
-
-## API Endpoints
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | /api/v1/health | Estado del servidor |
-| GET | /api/v1/capabilities | Estado de componentes |
-| GET | /api/v1/cases | Casos sintéticos |
-| GET | /api/v1/cases/:id | Detalle de caso |
-| POST | /api/v1/evaluations | Evaluar afirmación |
-| GET | /api/v1/evaluations/:id | Evaluación persistida |
-| GET | /api/v1/evaluations | Historial |
-| GET | /api/v1/sources | Fuentes |
-| GET | /api/v1/claims | Afirmaaciones |
-| GET | /api/v1/audit | Auditoría |
-| POST | /api/v1/seed | Seed (requiere token) |
-
-### Ejemplo con curl
+### Terminal 2: Pruebas
 ```bash
-# Health
+# Health check
 curl http://localhost:4000/api/v1/health
 
 # Evaluar caso
 curl -X POST http://localhost:4000/api/v1/evaluations \
   -H "Content-Type: application/json" \
   -d '{"claimId":"CLM-001","caseId":"CASE-001"}'
+
+# Ver historial
+curl http://localhost:4000/api/v1/evaluations
 ```
 
-## Estructura
+### Verificar Persistencia
+1. Detener servidor (Ctrl+C)
+2. Reiniciar: `npm run server`
+3. Consultar historial: `curl http://localhost:4000/api/v1/evaluations`
+4. La evaluación anterior debe seguir presente
 
+---
+
+## Windows PowerShell
+
+Ver guía completa: `docs/VERIFY_WINDOWS_POWERSHELL.md`
+
+**Comandos rápidos:**
+```powershell
+node --version
+npm --version
+npm ci
+npm run typecheck
+npm run typecheck:server
+npm run build
+npm test
+npm run server  # Terminal 1
+# En Terminal 2:
+Invoke-RestMethod -Uri "http://localhost:4000/api/v1/health"
 ```
-server/
-├── index.ts          — Entry point Express
-├── app.ts            — Configuración + middleware
-├── routes.ts         — 11 endpoints API
-├── engine.ts         — Motor EGM persistente
-├── storage.ts        — SQLite + StorageAdapter
-├── schemas.ts        — Validación Zod
-└── seed.ts           — Datos sintéticos
 
-src/
-├── core/
-│   └── api-client.ts — Cliente HTTP fetch
-├── components/       — UI React
-├── App.tsx           — Aplicación principal
-└── main.tsx          — Entry point
+---
 
-tests/
-├── egm-engine.test.ts                    — 15 tests
-└── integration/
-    ├── api.integration.test.ts           — 17 tests
-    └── persistence.test.ts              — 4 tests
+## API Endpoints (11 rutas)
 
-docs/                   — Documentación completa
-```
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | /api/v1/health | Estado del servidor |
+| GET | /api/v1/capabilities | 7 componentes |
+| GET | /api/v1/cases | 7 casos sintéticos |
+| GET | /api/v1/cases/:id | Detalle de caso |
+| POST | /api/v1/evaluations | Evaluar afirmación |
+| GET | /api/v1/evaluations/:id | Evaluación persistida |
+| GET | /api/v1/evaluations | Historial |
+| GET | /api/v1/sources | Fuentes |
+| GET | /api/v1/claims | Claims |
+| GET | /api/v1/audit | Auditoría |
+| POST | /api/v1/seed | Seed (requiere token) |
+
+---
+
+## Variables de Entorno
+
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `PORT` | 4000 | Puerto del servidor |
+| `DB_PATH` | ./data/hagrap.db | Ruta SQLite |
+| `CORS_ORIGINS` | localhost:3000,localhost:5173 | Orígenes CORS |
+| `HAGRAP_DEV_TOKEN` | (vacío) | Token para POST /seed |
+| `NODE_ENV` | development | Entorno |
+
+---
 
 ## Componentes
 
 | ID | Nombre | Estado |
 |----|--------|--------|
-| EGM | Evidence Graph Memory (Persistent) | ✅ VERIFICADO_LOCAL |
+| EGM | Evidence Graph Memory (Persistent) | ✅ IMPLEMENTED |
 | DRE | Deep Reasoning Engine | ❌ NO_IMPLEMENTADO |
 | AWE | Abstraction and World-Model Engine | ❌ NO_IMPLEMENTADO |
 | HCP | Hierarchical Contingent Planner | ❌ NO_IMPLEMENTADO |
@@ -136,7 +151,9 @@ docs/                   — Documentación completa
 | HGI | Human Governance Interface | ❌ NO_IMPLEMENTADO |
 | RAEC | Resource-Aware Execution Controller | ❌ NO_IMPLEMENTADO |
 
-## Casos Experimentales
+---
+
+## Casos Experimentales (7)
 
 | ID | Descripción | Verdict Esperado |
 |----|-------------|-----------------|
@@ -148,21 +165,91 @@ docs/                   — Documentación completa
 | CASE-006 | Fuente derivada | INSUFFICIENT_EVIDENCE |
 | CASE-007 | Periodo diferente | SUPPORTED |
 
+---
+
+## Estructura
+
+```
+server/              — Backend Express + SQLite
+├── index.ts         — Entry point
+├── app.ts           — Configuración Express
+├── routes.ts        — 11 endpoints
+├── engine.ts        — Motor EGM-Persistent
+├── storage.ts       — SQLite + StorageAdapter
+├── schemas.ts       — Validación Zod
+└── seed.ts          — Datos sintéticos
+
+src/                 — Frontend React
+├── core/
+│   └── api-client.ts — Cliente HTTP
+├── components/      — UI React
+├── App.tsx          — Aplicación principal
+└── main.tsx         — Entry point
+
+tests/               — Tests Vitest
+├── egm-engine.test.ts
+└── integration/
+    ├── api.integration.test.ts
+    └── persistence.test.ts
+
+docs/                — Documentación
+.github/workflows/   — GitHub Actions
+```
+
+---
+
+## GitHub Actions
+
+Workflow: `.github/workflows/verify.yml`
+
+**Triggers:** push, pull_request, workflow_dispatch  
+**Jobs:** verify (typecheck + build + tests), smoke-test (HTTP)
+
+**Para ejecutar:** Publicar repositorio en GitHub y hacer push.
+
+---
+
 ## Documentación
 
-- `docs/PHASE_0_AUDIT.md` — Auditoría Fase 0
-- `docs/PHASE_0_VERIFICATION.md` — Verificación Fase 0
-- `docs/PHASE_1_ARCHITECTURE.md` — Arquitectura Fase 1
-- `docs/PHASE_1_API_OPENAPI.yaml` — Especificación OpenAPI
-- `docs/PHASE_1_TEST_EVIDENCE.md` — Evidencia de pruebas
-- `docs/PHASE_1_SECURITY_NOTES.md` — Seguridad
-- `docs/PHASE_1_LIMITATIONS.md` — Limitaciones
-- `docs/PHASE_1_REPORT.md` — Informe final
-- `docs/CAPABILITY_MATRIX.md` — Matriz actualizada
+- `docs/PHASE_1_GO_NO_GO_FINAL.md` — Veredicto final
+- `docs/PHASE_1_EXECUTION_MATRIX.md` — Matriz de ejecución
+- `docs/PHASE_1_HTTP_VERIFICATION.md` — Endpoints HTTP
+- `docs/PHASE_1_SQLITE_RESTART_PROOF.md` — Persistencia
+- `docs/PHASE_1_CI_REPORT.md` — CI/CD
+- `docs/VERIFY_WINDOWS_POWERSHELL.md` — Guía Windows
+- `docs/PHASE_1_API_OPENAPI.yaml` — OpenAPI spec
+
+---
+
+## Limitaciones
+
+- SQLite local NO es apto para producción multiusuario
+- No hay inferencia causal, abstracción ni planificación
+- No se conecta a servicios externos ni modelos de IA
+- Todos los datos son sintéticos
+- TRL no validado
+
+---
+
+## Seguridad
+
+- Validación Zod server-side
+- CORS configurable
+- Sin secretos en código
+- Token para endpoint seed (opcional)
+- Sin stack traces en errores
+
+---
 
 ## Veredicto
 
-- **FASE 0:** PASS (cerrada)
-- **FASE 1:** PARTIAL (implementación completa, tests no ejecutados en sandbox)
+**Fase 0:** ✅ PASS  
+**Fase 1:** ⚠️ PARTIAL (implementado, no verificado en ejecución)
 
-Para PASS completo de Fase 1, ejecutar `npx vitest run` en entorno local.
+**Para cerrar Fase 1:** Ejecutar `docs/VERIFY_WINDOWS_POWERSHELL.md` o publicar en GitHub.
+
+---
+
+## Licencia
+
+Prototipo científico de investigación. No para uso en producción.
